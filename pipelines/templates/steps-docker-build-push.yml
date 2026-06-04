@@ -1,0 +1,79 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  Reusable template: Docker build + push to Azure Container Registry.
+#  Uses `az acr login` via the Azure service connection — no separate
+#  Docker registry service connection required.
+#
+#  Parameters:
+#    azureServiceConnection - Azure service connection with AcrPush on the registry
+#    acrLoginServer         - e.g. nhsnobdevacr.azurecr.io
+#    imageName              - e.g. nhsnlink-onboarding-service
+#    dockerfile             - path to Dockerfile, relative to buildContext
+#    buildContext           - Docker build context (. or Web/)
+#    imageTag               - primary tag (e.g. $(Build.BuildId))
+#    additionalTags         - space-separated extra tags (e.g. "latest dev")
+# ─────────────────────────────────────────────────────────────────────────────
+parameters:
+  - name: azureServiceConnection
+    type: string
+
+  - name: acrLoginServer
+    type: string
+
+  - name: imageName
+    type: string
+
+  - name: dockerfile
+    type: string
+
+  - name: buildContext
+    type: string
+    default: '.'
+
+  - name: imageTag
+    type: string
+    default: '$(Build.BuildId)'
+
+  - name: additionalTags
+    type: string
+    default: 'latest'
+
+steps:
+  # Authenticate Docker to ACR using the Azure service connection
+  - task: AzureCLI@2
+    displayName: 'ACR login — ${{ parameters.imageName }}'
+    inputs:
+      azureSubscription: '${{ parameters.azureServiceConnection }}'
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: az acr login --name ${{ parameters.acrLoginServer }}
+
+  # Build with the primary tag
+  - script: |
+      docker build \
+        -f "${{ parameters.dockerfile }}" \
+        -t "${{ parameters.acrLoginServer }}/${{ parameters.imageName }}:${{ parameters.imageTag }}" \
+        "${{ parameters.buildContext }}"
+    displayName: 'docker build — ${{ parameters.imageName }}:${{ parameters.imageTag }}'
+
+  # Tag additional aliases (e.g. "latest")
+  - ${{ if ne(parameters.additionalTags, '') }}:
+    - script: |
+        for TAG in ${{ parameters.additionalTags }}; do
+          docker tag \
+            "${{ parameters.acrLoginServer }}/${{ parameters.imageName }}:${{ parameters.imageTag }}" \
+            "${{ parameters.acrLoginServer }}/${{ parameters.imageName }}:${TAG}"
+        done
+      displayName: 'docker tag — additional tags (${{ parameters.additionalTags }})'
+
+  # Push primary tag
+  - script: |
+      docker push "${{ parameters.acrLoginServer }}/${{ parameters.imageName }}:${{ parameters.imageTag }}"
+    displayName: 'docker push — :${{ parameters.imageTag }}'
+
+  # Push additional tags
+  - ${{ if ne(parameters.additionalTags, '') }}:
+    - script: |
+        for TAG in ${{ parameters.additionalTags }}; do
+          docker push "${{ parameters.acrLoginServer }}/${{ parameters.imageName }}:${TAG}"
+        done
+      displayName: 'docker push — additional tags'

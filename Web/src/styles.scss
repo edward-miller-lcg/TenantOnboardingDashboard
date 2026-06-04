@@ -1,0 +1,199 @@
+@use '@angular/material' as mat;
+@use 'sass:color';
+
+// NHSN Color palette
+$nhsn-navy: #003F72;
+$nhsn-blue: #205493;
+$nhsn-link: #0071BC;
+$nhsn-text: #212121;
+$nhsn-muted: #5B616B;
+$nhsn-border: #D6D7D9;
+$nhsn-bg: #F1F1F1;
+$nhsn-success: #2E8540;
+$nhsn-error: #D93025;
+
+html {
+  @include mat.theme((
+    color: (
+      theme-type: light,
+      primary: mat.$azure-palette,
+    ),
+    typography: Roboto,
+    density: 0
+  ));
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  font-family: 'Source Sans Pro', 'Helvetica Neue', Helvetica, Roboto, Arial, sans-serif;
+  font-size: 16px;
+  color: $nhsn-text;
+  background-color: $nhsn-bg;
+}
+
+a {
+  color: $nhsn-link;
+  text-decoration: underline;
+  cursor: pointer;
+  &:hover { color: color.adjust($nhsn-link, $lightness: -15%); }
+}
+
+.page-content {
+  padding: 24px 32px;
+  max-width: 960px;
+}
+
+.page-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: $nhsn-text;
+  margin: 0 0 16px 0;
+}
+
+.nhsn-btn {
+  display: inline-block;
+  padding: 8px 20px;
+  font-size: 1rem;
+  font-weight: 400;
+  border: 1px solid $nhsn-blue;
+  background: white;
+  color: $nhsn-blue;
+  cursor: pointer;
+  border-radius: 0;
+  text-decoration: none;
+  transition: background 0.15s;
+
+  &:hover { background: $nhsn-blue; color: white; text-decoration: none; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
+
+  &.nhsn-btn-primary {
+    background: $nhsn-blue;
+    color: white;
+    &:hover { background: color.adjust($nhsn-blue, $lightness: -10%); }
+  }
+}
+
+.nhsn-form-group {
+  margin-bottom: 20px;
+
+  label {
+    display: block;
+    font-weight: 700;
+    margin-bottom: 4px;
+    font-size: 1rem;
+
+    .required-mark { color: #D93025; margin-left: 2px; }
+  }
+
+  input[type="text"],
+  input[type="url"],
+  input[type="tel"],
+  input[type="password"],
+  textarea,
+  select {
+    width: 100%;
+    max-width: 420px;
+    padding: 8px 10px;
+    border: 1px solid $nhsn-border;
+    font-size: 1rem;
+    border-radius: 0;
+    box-sizing: border-box;
+    &:focus { outline: 3px solid $nhsn-link; outline-offset: 0; }
+    &::placeholder { color: $nhsn-muted; }
+  }
+
+  .field-error { color: #D93025; font-size: 0.875rem; margin-top: 4px; }
+  .field-hint { color: $nhsn-muted; font-size: 0.875rem; margin-top: 4px; }
+}
+
+.nhsn-checkbox-group {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 16px;
+
+  input[type="checkbox"] { width: 18px; height: 18px; margin-top: 2px; flex-shrink: 0; cursor: pointer; }
+  label { font-size: 1rem; cursor: pointer; line-height: 1.4; }
+}
+
+.step-section-header {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 20px 0 8px 0;
+}
+
+.nhsn-success-msg {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: $nhsn-success;
+  font-size: 1rem;
+  margin-bottom: 16px;
+}
+
+.nhsn-error-msg {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: #D93025;
+  font-size: 1rem;
+  margin-bottom: 16px;
+}
+
+.nhsn-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+
+  th {
+    background: #f1f1f1;
+    border-bottom: 2px solid $nhsn-border;
+    padding: 10px 12px;
+    text-align: left;
+    font-weight: 700;
+  }
+
+  td {
+    padding: 10px 12px;
+    border-bottom: 1px solid $nhsn-border;
+  }
+
+  tr:hover td { background: #f9f9f9; }
+}
+
+.tooltip-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: $nhsn-link;
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 700;
+  margin-left: 6px;
+  cursor: help;
+  flex-shrink: 0;
+}
+
+.code-system-map-box {
+  border: 1px solid $nhsn-border;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.norm-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid $nhsn-border;
+  gap: 16px;
+
+  .norm-info { flex: 1; }
+  .norm-name { font-weight: 600; }
+  .norm-type { font-size: 0.875rem; color: $nhsn-muted; }
+  .norm-actions { display: flex; gap: 8px; }
+}

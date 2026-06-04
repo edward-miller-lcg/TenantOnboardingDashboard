@@ -1,0 +1,184 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  Infrastructure Deployment Pipeline
+#  Manual trigger only (or on changes to infrastructure/** on main).
+#  Deploys Bicep or Terraform to a target environment with approval gates.
+#
+#  Required variable groups (per environment):
+#    nhsnlink-onboarding-dev:
+#      AZURE_SERVICE_CONNECTION   - service connection with Contributor on RG
+#      RESOURCE_GROUP             - e.g. rg-nhsnlink-onboarding-dev
+#      SQL_ADMIN_PASSWORD         - (secret) SQL Server password
+#      TENANT_SERVICE_URL
+#      DATA_ACQUISITION_URL
+#      REPORT_SERVICE_URL
+#      NORMALIZATION_SERVICE_URL
+#    nhsnlink-onboarding-prod:    - same keys, prod values
+# ─────────────────────────────────────────────────────────────────────────────
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - infrastructure/**
+
+pr: none
+
+parameters:
+  - name: environment
+    displayName: Target Environment
+    type: string
+    default: dev
+    values:
+      - dev
+      - prod
+
+  - name: tool
+    displayName: IaC Tool
+    type: string
+    default: bicep
+    values:
+      - bicep
+      - terraform
+
+  - name: destroyFirst
+    displayName: Destroy before deploy (DANGEROUS — use only in dev)
+    type: boolean
+    default: false
+
+pool:
+  vmImage: ubuntu-latest
+
+stages:
+
+  # ─── Preview / Plan ────────────────────────────────────────────────────────
+  - stage: Preview
+    displayName: 'Preview (${{ parameters.tool }} / ${{ parameters.environment }})'
+    variables:
+      - group: nhsnlink-onboarding-${{ parameters.environment }}
+    jobs:
+      - job: Plan
+        displayName: ${{ upper(parameters.tool) }} preview
+        steps:
+          - checkout: self
+
+          - ${{ if eq(parameters.tool, 'bicep') }}:
+            - task: AzureCLI@2
+              displayName: 'az deployment what-if'
+              inputs:
+                azureSubscription: $(AZURE_SERVICE_CONNECTION)
+                scriptType: bash
+                scriptLocation: inlineScript
+                inlineScript: |
+                  az deployment group what-if \
+                    --resource-group "$(RESOURCE_GROUP)" \
+                    --template-file  infrastructure/main.bicep \
+                    --parameters     infrastructure/${{ parameters.environment }}.bicepparam \
+                    --parameters     sqlAdminPassword="$(SQL_ADMIN_PASSWORD)"
+
+          - ${{ if eq(parameters.tool, 'terraform') }}:
+            - task: TerraformInstaller@1
+              displayName: 'Install Terraform'
+              inputs:
+                terraformVersion: 'latest'
+
+            - task: TerraformTaskV4@4
+              displayName: 'terraform init'
+              inputs:
+                provider: azurerm
+                command: init
+                workingDirectory: infrastructure/terraform
+                backendServiceArm: $(AZURE_SERVICE_CONNECTION)
+                backendAzureRmResourceGroupName: rg-tfstate
+                backendAzureRmStorageAccountName: nhsnobtfstate
+                backendAzureRmContainerName: tfstate
+                backendAzureRmKey: nhsnlink-onboarding-${{ parameters.environment }}.tfstate
+
+            - task: TerraformTaskV4@4
+              displayName: 'terraform plan'
+              inputs:
+                provider: azurerm
+                command: plan
+                workingDirectory: infrastructure/terraform
+                commandOptions: >
+                  -var-file=environments/${{ parameters.environment }}.tfvars
+                  -var="sql_admin_password=$(SQL_ADMIN_PASSWORD)"
+                  -out=tfplan
+                environmentServiceNameAzureRM: $(AZURE_SERVICE_CONNECTION)
+
+  # ─── Deploy ────────────────────────────────────────────────────────────────
+  # Uses ADO Environments for prod approval gate.
+  # Create environment "nhsnlink-prod" in ADO → Approvals → add your approver(s).
+  - stage: Deploy
+    displayName: 'Deploy (${{ parameters.tool }} / ${{ parameters.environment }})'
+    dependsOn: Preview
+    condition: succeeded()
+    variables:
+      - group: nhsnlink-onboarding-${{ parameters.environment }}
+    jobs:
+      - deployment: DeployInfrastructure
+        displayName: Deploy infrastructure
+        environment: nhsnlink-${{ parameters.environment }}   # Approval gate lives here
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+
+                - ${{ if eq(parameters.tool, 'bicep') }}:
+                  - task: AzureCLI@2
+                    displayName: 'az deployment group create'
+                    inputs:
+                      azureSubscription: $(AZURE_SERVICE_CONNECTION)
+                      scriptType: bash
+                      scriptLocation: inlineScript
+                      inlineScript: |
+                        set -euo pipefail
+                        az group create \
+                          --name     "$(RESOURCE_GROUP)" \
+                          --location "eastus" \
+                          --tags     application=nhsnlink-onboarding environment=${{ parameters.environment }} || true
+
+                        az deployment group create \
+                          --resource-group "$(RESOURCE_GROUP)" \
+                          --template-file  infrastructure/main.bicep \
+                          --parameters     infrastructure/${{ parameters.environment }}.bicepparam \
+                          --parameters     sqlAdminPassword="$(SQL_ADMIN_PASSWORD)" \
+                          --name           "nhsnlink-onboarding-$(Build.BuildId)"
+
+                        echo "Outputs:"
+                        az deployment group show \
+                          --resource-group "$(RESOURCE_GROUP)" \
+                          --name "nhsnlink-onboarding-$(Build.BuildId)" \
+                          --query properties.outputs \
+                          --output json
+
+                - ${{ if eq(parameters.tool, 'terraform') }}:
+                  - task: TerraformInstaller@1
+                    displayName: 'Install Terraform'
+                    inputs:
+                      terraformVersion: 'latest'
+
+                  - task: TerraformTaskV4@4
+                    displayName: 'terraform init'
+                    inputs:
+                      provider: azurerm
+                      command: init
+                      workingDirectory: infrastructure/terraform
+                      backendServiceArm: $(AZURE_SERVICE_CONNECTION)
+                      backendAzureRmResourceGroupName: rg-tfstate
+                      backendAzureRmStorageAccountName: nhsnobtfstate
+                      backendAzureRmContainerName: tfstate
+                      backendAzureRmKey: nhsnlink-onboarding-${{ parameters.environment }}.tfstate
+
+                  - task: TerraformTaskV4@4
+                    displayName: 'terraform apply'
+                    inputs:
+                      provider: azurerm
+                      command: apply
+                      workingDirectory: infrastructure/terraform
+                      commandOptions: >
+                        -var-file=environments/${{ parameters.environment }}.tfvars
+                        -var="sql_admin_password=$(SQL_ADMIN_PASSWORD)"
+                        -auto-approve
+                      environmentServiceNameAzureRM: $(AZURE_SERVICE_CONNECTION)

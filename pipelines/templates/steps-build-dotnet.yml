@@ -1,0 +1,72 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  Reusable template: Build and (optionally) test the ASP.NET Core 10 backend.
+#
+#  Parameters:
+#    configuration  - Release | Debug
+#    runTests       - whether to run dotnet test (default true)
+#    publishPath    - where to publish the built artifact
+# ─────────────────────────────────────────────────────────────────────────────
+parameters:
+  - name: configuration
+    type: string
+    default: Release
+
+  - name: runTests
+    type: boolean
+    default: true
+
+  - name: publishArtifact
+    type: boolean
+    default: false
+
+steps:
+  - task: UseDotNet@2
+    displayName: 'Use .NET 10 SDK'
+    inputs:
+      packageType: sdk
+      version: '10.x'
+
+  - task: DotNetCoreCLI@2
+    displayName: 'dotnet restore'
+    inputs:
+      command: restore
+      projects: 'DotNet/OnboardingService/OnboardingService.csproj'
+
+  - task: DotNetCoreCLI@2
+    displayName: 'dotnet build (${{ parameters.configuration }})'
+    inputs:
+      command: build
+      projects: 'DotNet/OnboardingService/OnboardingService.csproj'
+      arguments: '--configuration ${{ parameters.configuration }} --no-restore'
+
+  - ${{ if eq(parameters.runTests, true) }}:
+    - task: DotNetCoreCLI@2
+      displayName: 'dotnet test'
+      inputs:
+        command: test
+        projects: '**/*.Tests.csproj'
+        arguments: '--configuration ${{ parameters.configuration }} --no-build --logger trx --results-directory $(Agent.TempDirectory)/TestResults'
+        publishTestResults: false   # We publish below with more control
+
+    - task: PublishTestResults@2
+      displayName: 'Publish test results'
+      condition: always()
+      inputs:
+        testResultsFormat: VSTest
+        testResultsFiles: '$(Agent.TempDirectory)/TestResults/*.trx'
+        failTaskOnFailedTests: true
+
+  - ${{ if eq(parameters.publishArtifact, true) }}:
+    - task: DotNetCoreCLI@2
+      displayName: 'dotnet publish'
+      inputs:
+        command: publish
+        projects: 'DotNet/OnboardingService/OnboardingService.csproj'
+        arguments: '--configuration ${{ parameters.configuration }} --output $(Build.ArtifactStagingDirectory)/onboarding-service'
+        publishWebProjects: false
+
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish backend artifact'
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)/onboarding-service'
+        ArtifactName: 'onboarding-service'

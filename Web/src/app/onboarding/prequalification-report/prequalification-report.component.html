@@ -1,0 +1,74 @@
+<div class="page-content">
+  <app-onboarding-breadcrumb [token]="token" currentStep="TestReport" />
+  <div class="contact-support"><a href="https://servicenow.example.com" target="_blank">Contact support</a></div>
+
+  <h1 class="page-title">Prequalification Report</h1>
+  <p>
+    <span class="help-icon">?</span>
+    <a href="javascript:void(0)">What is a prequalification report?</a>
+  </p>
+
+  @if (loading) {
+    <p>Loading report...</p>
+  } @else if (!report) {
+    <p>Report not found.</p>
+  } @else {
+    <div class="report-summary-box">
+      <div class="summary-item"><span class="summary-label">Reporting Period</span><span>{{ report.reportingPeriod }}</span></div>
+      <div class="summary-item"><span class="summary-label">Status</span>
+        <span [class]="'result-badge result-' + report.status.toLowerCase()">{{ report.status }}</span>
+      </div>
+      <div class="summary-item"><span class="summary-label">Unacceptable Issues</span><span>{{ report.unacceptableIssues }}</span></div>
+      <div class="summary-item"><span class="summary-label">Total Patients</span><span>{{ report.totalPatients }}</span></div>
+    </div>
+
+    <!-- Issues bar chart -->
+    <h2 class="section-heading">Issues Summary</h2>
+    <div class="bar-chart">
+      @for (cat of (report.unacceptableCategories ?? []); track cat.id) {
+        <div class="bar-row">
+          <span class="bar-label">{{ cat.category | slice:0:20 }}</span>
+          <div class="bar-track"><div class="bar-fill bar-unacceptable" [style.width]="barWidth(cat.numberOfIssues)"></div></div>
+          <span class="bar-count">{{ cat.numberOfIssues }}</span>
+        </div>
+      }
+      @for (cat of (report.acceptableCategories ?? []); track cat.id) {
+        <div class="bar-row">
+          <span class="bar-label">{{ cat.category | slice:0:20 }}</span>
+          <div class="bar-track"><div class="bar-fill bar-acceptable" [style.width]="barWidth(cat.numberOfIssues)"></div></div>
+          <span class="bar-count">{{ cat.numberOfIssues }}</span>
+        </div>
+      }
+    </div>
+
+    <!-- Unacceptable categories -->
+    <h2 class="section-heading">Unacceptable Categories</h2>
+    <table class="nhsn-table">
+      <thead><tr><th>Category</th><th>Number of Issues</th><th>Guidance</th></tr></thead>
+      <tbody>
+        @for (cat of report.unacceptableCategories; track cat.id) {
+          <tr>
+            <td><a href="javascript:void(0)" (click)="viewCategory(cat.id)">{{ cat.category }}</a></td>
+            <td>{{ cat.numberOfIssues }}</td>
+            <td>{{ cat.guidance }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+
+    <!-- Acceptable categories -->
+    <h2 class="section-heading" style="margin-top:20px">Acceptable Categories</h2>
+    <table class="nhsn-table">
+      <thead><tr><th>Category</th><th>Number of Issues</th><th>Guidance</th></tr></thead>
+      <tbody>
+        @for (cat of report.acceptableCategories; track cat.id) {
+          <tr>
+            <td><a href="javascript:void(0)" (click)="viewCategory(cat.id)">{{ cat.category }}</a></td>
+            <td>{{ cat.numberOfIssues }}</td>
+            <td>{{ cat.guidance }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+</div>

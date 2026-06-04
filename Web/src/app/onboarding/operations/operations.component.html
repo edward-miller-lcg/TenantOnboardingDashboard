@@ -1,0 +1,40 @@
+<div class="page-content">
+  <h1 class="page-title">Guided Onboarding Overview</h1>
+
+  <div class="nhsn-success-msg" style="margin-bottom: 16px;">
+    <span class="success-check">&#10003;</span>
+    NHSNLink is successfully configured!
+  </div>
+
+  <!-- Compliance Attestation -->
+  <div class="checklist__item">
+    <span class="check checked">&#9745;</span>
+    <a [routerLink]="['/onboarding', token]">Compliance Attestation</a>
+  </div>
+
+  <h2 class="step-section-header">Configuration</h2>
+  @for (step of configSteps; track step.path) {
+    <div class="checklist__item">
+      <span class="check checked">&#9745;</span>
+      <a [routerLink]="['/onboarding', token, step.path]">{{ step.label }}</a>
+    </div>
+  }
+
+  <h2 class="step-section-header">Validation</h2>
+  @for (step of validationSteps; track step.path) {
+    <div class="checklist__item">
+      <span class="check checked">&#9745;</span>
+      <a [routerLink]="['/onboarding', token, step.path]">{{ step.label }}</a>
+    </div>
+  }
+
+  <div class="checklist__item" style="margin-top: 8px;">
+    <span class="check checked">&#9745;</span>
+    <a [routerLink]="['/onboarding', token, 'operations']">Operations</a>
+  </div>
+
+  <div class="submission-section">
+    <p>Congratulations! NHSNLink has been configured! You can now set up your Digital Measure Reporting Plan and schedule reports. <a href="#">Click here to learn more.</a></p>
+    <a href="#" class="nhsn-btn nhsn-btn-primary">Submission Dashboard</a>
+  </div>
+</div>

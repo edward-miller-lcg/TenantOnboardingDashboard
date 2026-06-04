@@ -1,0 +1,24 @@
+.contact-support { text-align: right; margin-bottom: 8px; }
+.field-row { display: flex; gap: 24px; }
+.btn-row { display: flex; gap: 12px; margin-top: 8px; }
+.conditions-box {
+  border: 1px solid #d6d7d9;
+  padding: 16px;
+  margin: 16px 0;
+  position: relative;
+}
+.conditions-label {
+  position: absolute;
+  top: -10px;
+  left: 12px;
+  background: white;
+  padding: 0 4px;
+  font-size: 0.875rem;
+  color: #5b616b;
+}
+.condition-row {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}

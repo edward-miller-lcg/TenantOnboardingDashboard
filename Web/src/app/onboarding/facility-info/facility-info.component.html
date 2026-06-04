@@ -1,0 +1,71 @@
+<div class="page-content">
+  <app-onboarding-breadcrumb [token]="token" currentStep="FacilityInfo" />
+
+  <div class="contact-support"><a href="https://servicenow.example.com" target="_blank">Contact support</a></div>
+
+  <h1 class="page-title">Facility Information</h1>
+
+  <p class="meta-line"><strong>NHSN Org ID:</strong> {{ nhsnOrgId }}</p>
+  <p class="meta-line"><strong>Health System Name:</strong> {{ healthSystemName }}</p>
+
+  <form [formGroup]="form">
+    <div class="nhsn-form-group">
+      <label for="orgNames">
+        Organization Name(s) <span class="required-mark">*</span>
+        <span class="tooltip-icon" title="Name(s) of the facility associated with the NHSN Org ID">?</span>
+      </label>
+      <input id="orgNames" type="text" formControlName="organizationNames" placeholder="Multiple names separated by commas" />
+      @if (form.controls.organizationNames.touched && form.controls.organizationNames.hasError('required')) {
+        <div class="field-error">Organization Name is required.</div>
+      }
+    </div>
+
+    <div class="nhsn-form-group">
+      <label for="tz">
+        Time Zone <span class="required-mark">*</span>
+        <span class="tooltip-icon" title="Facility's local time zone">?</span>
+      </label>
+      <select id="tz" formControlName="timeZone">
+        <option value="">Select</option>
+        @for (tz of timezones; track tz) {
+          <option [value]="tz">{{ tz }}</option>
+        }
+      </select>
+      @if (form.controls.timeZone.touched && form.controls.timeZone.hasError('required')) {
+        <div class="field-error">Time Zone is required.</div>
+      }
+    </div>
+
+    <div class="nhsn-form-group">
+      <label for="addr">
+        Physical Address <span class="required-mark">*</span>
+        <span class="tooltip-icon" title="Facility's address">?</span>
+      </label>
+      <input id="addr" type="text" formControlName="physicalAddress" />
+      @if (form.controls.physicalAddress.touched && form.controls.physicalAddress.hasError('required')) {
+        <div class="field-error">Physical Address is required.</div>
+      }
+    </div>
+
+    <div class="nhsn-form-group">
+      <label for="phone">
+        Technical Contact Phone Number
+        <span class="tooltip-icon" title="Point of contact for technical issues">?</span>
+      </label>
+      <input id="phone" type="tel" formControlName="technicalContactPhone" placeholder="###-###-####" />
+      @if (form.controls.technicalContactPhone.touched && form.controls.technicalContactPhone.hasError('pattern')) {
+        <div class="field-error">Format must be ###-###-####.</div>
+      }
+    </div>
+
+    <p class="field-hint">* Required</p>
+    @if (error) { <div class="nhsn-error-msg">{{ error }}</div> }
+
+    <div class="btn-row">
+      <button type="button" class="nhsn-btn nhsn-btn-primary" [disabled]="saving" (click)="save(true)">
+        {{ saving ? 'Saving...' : 'Save &amp; continue' }}
+      </button>
+      <button type="button" class="nhsn-btn" [disabled]="saving" (click)="save(false)">Save</button>
+    </div>
+  </form>
+</div>

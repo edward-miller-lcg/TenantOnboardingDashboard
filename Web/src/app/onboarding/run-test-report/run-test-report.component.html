@@ -1,0 +1,22 @@
+<div class="page-content">
+  <app-onboarding-breadcrumb [token]="token" currentStep="TestReport" />
+  <div class="contact-support"><a href="https://servicenow.example.com" target="_blank">Contact support</a></div>
+
+  <h1 class="page-title">Run New Test Report</h1>
+  <p>Generate a test report to validate your FHIR data quality. The report covers all patients of interest in the selected date range. Reports may take up to one week to complete.</p>
+
+  <div class="date-row">
+    <span><strong>Start Date:</strong> {{ startDate | date:'M/d/yyyy' }}</span>
+    <span><strong>End Date:</strong> {{ endDate | date:'M/d/yyyy' }}</span>
+  </div>
+  <p class="field-hint">Date range is derived from your patients of interest list and cannot be edited.</p>
+
+  @if (generated) {
+    <div class="nhsn-success-msg"><span>&#10003;</span> Report generation started. Redirecting to reports list...</div>
+  } @else {
+    @if (error) { <div class="nhsn-error-msg">{{ error }}</div> }
+    <button class="nhsn-btn nhsn-btn-primary" [disabled]="generating" (click)="generate()">
+      {{ generating ? 'Generating...' : 'Generate Report' }}
+    </button>
+  }
+</div>

@@ -1,0 +1,263 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  Release Pipeline — Full End-to-End CD
+#
+#  Stages:
+#    1. Build & Test        — compile, unit test, lint
+#    2. Build & Push        — build Docker images, push to ACR
+#    3. Deploy → Dev        — update Container Apps in dev (automatic)
+#    4. Smoke Test          — basic connectivity check against dev
+#    5. Deploy → Prod       — update Container Apps in prod (APPROVAL REQUIRED)
+#
+#  Triggered by: merge to main, or manually with custom imageTag.
+#
+#  Variable groups required (configure in ADO Library):
+#
+#    nhsnlink-onboarding-common:
+#      ACR_NAME                   nhsnobdevacr
+#      ACR_LOGIN_SERVER            nhsnobdevacr.azurecr.io
+#      AZURE_SERVICE_CONNECTION_DEV   <name of dev service connection>
+#      AZURE_SERVICE_CONNECTION_PROD  <name of prod service connection>
+#
+#    nhsnlink-onboarding-dev:
+#      RESOURCE_GROUP             rg-nhsnlink-onboarding-dev
+#      APP_NAME_PREFIX            nhsnob-dev
+#
+#    nhsnlink-onboarding-prod:
+#      RESOURCE_GROUP             rg-nhsnlink-onboarding-prod
+#      APP_NAME_PREFIX            nhsnob-prod
+#
+#  ADO Environments required:
+#    nhsnlink-dev   (no approval gate needed)
+#    nhsnlink-prod  (add approval gate — only designated approvers can proceed)
+# ─────────────────────────────────────────────────────────────────────────────
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    exclude:
+      - infrastructure/**
+      - pipelines/**
+      - '**/*.md'
+
+pr: none
+
+parameters:
+  - name: imageTag
+    displayName: 'Image tag to deploy (leave blank to use Build ID)'
+    type: string
+    default: ''
+
+  - name: skipBuild
+    displayName: 'Skip build & push (deploy a previously built tag)'
+    type: boolean
+    default: false
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  - group: nhsnlink-onboarding-common
+  - name: resolvedImageTag
+    value: ${{ coalesce(parameters.imageTag, '$(Build.BuildId)') }}
+
+# ─── Stage 1: Build & Test ────────────────────────────────────────────────────
+stages:
+  - stage: BuildTest
+    displayName: '1 · Build & Test'
+    condition: ${{ eq(parameters.skipBuild, false) }}
+    jobs:
+      - job: Backend
+        displayName: .NET 10 build + test
+        steps:
+          - template: templates/steps-build-dotnet.yml
+            parameters:
+              configuration: Release
+              runTests: true
+
+      - job: Frontend
+        displayName: Angular 21 build
+        steps:
+          - template: templates/steps-build-angular.yml
+
+# ─── Stage 2: Build & Push Docker Images ─────────────────────────────────────
+  - stage: BuildPush
+    displayName: '2 · Build & Push Images'
+    dependsOn: BuildTest
+    condition: |
+      and(
+        not(${{ parameters.skipBuild }}),
+        in(dependencies.BuildTest.result, 'Succeeded', 'SucceededWithIssues')
+      )
+    jobs:
+      - job: PushService
+        displayName: Push onboarding-service
+        steps:
+          - checkout: self
+          - template: templates/steps-docker-build-push.yml
+            parameters:
+              azureServiceConnection: $(AZURE_SERVICE_CONNECTION_DEV)
+              acrLoginServer: $(ACR_LOGIN_SERVER)
+              imageName: nhsnlink-onboarding-service
+              dockerfile: DotNet/OnboardingService/Dockerfile
+              buildContext: '.'
+              imageTag: $(resolvedImageTag)
+              additionalTags: 'latest'
+
+      - job: PushWeb
+        displayName: Push onboarding-web
+        steps:
+          - checkout: self
+          - template: templates/steps-docker-build-push.yml
+            parameters:
+              azureServiceConnection: $(AZURE_SERVICE_CONNECTION_DEV)
+              acrLoginServer: $(ACR_LOGIN_SERVER)
+              imageName: nhsnlink-onboarding-web
+              dockerfile: Web/Dockerfile
+              buildContext: 'Web'
+              imageTag: $(resolvedImageTag)
+              additionalTags: 'latest'
+
+# ─── Stage 3: Deploy → Dev ────────────────────────────────────────────────────
+  - stage: DeployDev
+    displayName: '3 · Deploy → Dev'
+    dependsOn:
+      - BuildTest
+      - BuildPush
+    condition: |
+      and(
+        in(dependencies.BuildTest.result, 'Succeeded', 'SucceededWithIssues', 'Skipped'),
+        in(dependencies.BuildPush.result, 'Succeeded', 'SucceededWithIssues', 'Skipped')
+      )
+    variables:
+      - group: nhsnlink-onboarding-dev
+    jobs:
+      - deployment: DeployServiceDev
+        displayName: Update onboarding-service (dev)
+        environment: nhsnlink-dev   # No approval gate for dev
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - template: templates/steps-deploy-container-app.yml
+                  parameters:
+                    azureServiceConnection: $(AZURE_SERVICE_CONNECTION_DEV)
+                    resourceGroup: $(RESOURCE_GROUP)
+                    containerAppName: $(APP_NAME_PREFIX)-api
+                    acrLoginServer: $(ACR_LOGIN_SERVER)
+                    imageName: nhsnlink-onboarding-service
+                    imageTag: $(resolvedImageTag)
+
+      - deployment: DeployWebDev
+        displayName: Update onboarding-web (dev)
+        dependsOn: DeployServiceDev
+        environment: nhsnlink-dev
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - template: templates/steps-deploy-container-app.yml
+                  parameters:
+                    azureServiceConnection: $(AZURE_SERVICE_CONNECTION_DEV)
+                    resourceGroup: $(RESOURCE_GROUP)
+                    containerAppName: $(APP_NAME_PREFIX)-web
+                    acrLoginServer: $(ACR_LOGIN_SERVER)
+                    imageName: nhsnlink-onboarding-web
+                    imageTag: $(resolvedImageTag)
+
+# ─── Stage 4: Smoke Test (Dev) ────────────────────────────────────────────────
+  - stage: SmokeTestDev
+    displayName: '4 · Smoke Test (Dev)'
+    dependsOn: DeployDev
+    condition: succeeded('DeployDev')
+    variables:
+      - group: nhsnlink-onboarding-dev
+    jobs:
+      - job: HealthChecks
+        displayName: Health & connectivity checks
+        steps:
+          - task: AzureCLI@2
+            displayName: 'Get Container App URLs'
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION_DEV)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -euo pipefail
+
+                API_FQDN=$(az containerapp show \
+                  --name "$(APP_NAME_PREFIX)-api" \
+                  --resource-group "$(RESOURCE_GROUP)" \
+                  --query "properties.configuration.ingress.fqdn" \
+                  --output tsv)
+
+                WEB_FQDN=$(az containerapp show \
+                  --name "$(APP_NAME_PREFIX)-web" \
+                  --resource-group "$(RESOURCE_GROUP)" \
+                  --query "properties.configuration.ingress.fqdn" \
+                  --output tsv)
+
+                echo "API: https://$API_FQDN"
+                echo "Web: https://$WEB_FQDN"
+
+                # Wait up to 60s for /health to return 200
+                echo "Checking API health endpoint..."
+                for i in $(seq 1 12); do
+                  STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://$API_FQDN/health" || true)
+                  echo "  Attempt $i: HTTP $STATUS"
+                  if [ "$STATUS" = "200" ]; then
+                    echo "API is healthy."
+                    break
+                  fi
+                  [ $i -eq 12 ] && echo "##[error] API health check timed out." && exit 1
+                  sleep 5
+                done
+
+                # Check the web app loads (nginx returns 200)
+                echo "Checking Web app..."
+                STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://$WEB_FQDN/" || true)
+                echo "  Web status: HTTP $STATUS"
+                [ "$STATUS" = "200" ] || (echo "##[error] Web app check failed." && exit 1)
+
+                echo "Smoke tests passed."
+
+# ─── Stage 5: Deploy → Prod ───────────────────────────────────────────────────
+  - stage: DeployProd
+    displayName: '5 · Deploy → Prod  ⚠ APPROVAL REQUIRED'
+    dependsOn: SmokeTestDev
+    condition: succeeded('SmokeTestDev')
+    variables:
+      - group: nhsnlink-onboarding-prod
+    jobs:
+      - deployment: DeployServiceProd
+        displayName: Update onboarding-service (prod)
+        environment: nhsnlink-prod   # ← Add your approvers to this ADO environment
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - template: templates/steps-deploy-container-app.yml
+                  parameters:
+                    azureServiceConnection: $(AZURE_SERVICE_CONNECTION_PROD)
+                    resourceGroup: $(RESOURCE_GROUP)
+                    containerAppName: $(APP_NAME_PREFIX)-api
+                    acrLoginServer: $(ACR_LOGIN_SERVER)
+                    imageName: nhsnlink-onboarding-service
+                    imageTag: $(resolvedImageTag)
+
+      - deployment: DeployWebProd
+        displayName: Update onboarding-web (prod)
+        dependsOn: DeployServiceProd
+        environment: nhsnlink-prod
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - template: templates/steps-deploy-container-app.yml
+                  parameters:
+                    azureServiceConnection: $(AZURE_SERVICE_CONNECTION_PROD)
+                    resourceGroup: $(RESOURCE_GROUP)
+                    containerAppName: $(APP_NAME_PREFIX)-web
+                    acrLoginServer: $(ACR_LOGIN_SERVER)
+                    imageName: nhsnlink-onboarding-web
+                    imageTag: $(resolvedImageTag)

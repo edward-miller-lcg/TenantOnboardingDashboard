@@ -1,0 +1,19 @@
+<div class="page-content">
+  <app-onboarding-breadcrumb [token]="token" currentStep="LocationTypeMapping" />
+  <div class="contact-support"><a href="https://servicenow.example.com" target="_blank">Contact support</a></div>
+
+  <h1 class="page-title">Location.type Mapping</h1>
+  <p>NHSNLink uses HSLOC (Healthcare Service Location Code) codes to categorize patient locations. To ensure accurate reporting, you must map your facility's location codes to the NHSN-standard HSLOC codes within the NHSN application before proceeding.</p>
+  <p>Navigate to the NHSN application and complete the HSLOC code mapping under your facility settings. Once complete, check the box below to confirm.</p>
+
+  <div class="nhsn-checkbox-group" style="margin-top: 20px;">
+    <input type="checkbox" id="hslocDone" [(ngModel)]="confirmed" />
+    <label for="hslocDone">I have completed the HSLOC code map in the NHSN app.</label>
+  </div>
+
+  <div style="margin-top: 16px;">
+    <button class="nhsn-btn nhsn-btn-primary" [disabled]="!confirmed || saving" (click)="save()">
+      {{ saving ? 'Saving...' : 'Save &amp; continue' }}
+    </button>
+  </div>
+</div>

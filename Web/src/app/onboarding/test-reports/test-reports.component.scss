@@ -1,0 +1,9 @@
+.contact-support { text-align: right; margin-bottom: 8px; }
+.actions-row { display: flex; gap: 12px; margin: 16px 0; }
+.success-banner { background: #e1f3e8; border-left: 4px solid #2e8540; padding: 16px 20px; margin-top: 16px; }
+.result-badge {
+  display: inline-block; padding: 2px 8px; font-size: 0.8125rem; border-radius: 2px;
+  &.result-success { background: #e1f3e8; color: #2e8540; }
+  &.result-failed { background: #fde8e8; color: #D93025; }
+  &.result-in_progress { background: #fff3cd; color: #8a6914; }
+}

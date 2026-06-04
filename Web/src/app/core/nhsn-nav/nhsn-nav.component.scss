@@ -1,0 +1,40 @@
+.nhsn-nav {
+  width: 200px;
+  flex-shrink: 0;
+  background: #205493;
+  min-height: calc(100vh - 88px);
+
+  &__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  &__item {
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+
+    a {
+      display: block;
+      padding: 10px 14px;
+      color: white;
+      text-decoration: none;
+      font-size: 0.875rem;
+      line-height: 1.3;
+
+      &:hover {
+        background: rgba(0,0,0,0.15);
+        text-decoration: none;
+        color: white;
+      }
+    }
+
+    &--active > a {
+      background: #112e51;
+      font-weight: 600;
+    }
+
+    &--home > a {
+      font-weight: 600;
+    }
+  }
+}

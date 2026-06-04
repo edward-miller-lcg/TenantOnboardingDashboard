@@ -1,0 +1,23 @@
+<div class="page-content">
+  <h1 class="page-title">About NSHNLink</h1>
+  <p>NHSNLink connects your Electronic Health Record (EHR) system to the National Healthcare Safety Network (NHSN) to support automated digital quality measure reporting. This guided onboarding process will walk you through the steps required to configure your facility.</p>
+  <p><a href="#" target="_blank">Link to dQM Resource Center</a></p>
+
+  <h2 class="section-heading">Compliance Attestation</h2>
+  <p>By proceeding with NHSNLink onboarding, your facility acknowledges and agrees to the following: all data submitted through NHSNLink will be used in accordance with NHSN reporting requirements. Your facility is responsible for ensuring the accuracy and completeness of data transmitted. Access to NHSNLink is limited to authorized personnel only, and any unauthorized access must be reported immediately to the NHSN team.</p>
+
+  <div class="nhsn-checkbox-group" style="margin-top: 16px;">
+    <input type="checkbox" id="agree" [(ngModel)]="agreed" />
+    <label for="agree">I Agree<span style="color:#D93025">*</span></label>
+  </div>
+  <p class="guidance-text">* The compliance attestation must be agreed to before NHSNLink can be configured.</p>
+
+  <h2 class="section-heading">Start NSHNLink Onboarding Process</h2>
+  <p><a href="https://servicenow.example.com" target="_blank">Submit Service Now Ticket</a></p>
+
+  <div style="margin-top: 24px;">
+    <button class="nhsn-btn nhsn-btn-primary" [disabled]="!agreed || saving" (click)="save()">
+      {{ saving ? 'Saving...' : 'Continue' }}
+    </button>
+  </div>
+</div>

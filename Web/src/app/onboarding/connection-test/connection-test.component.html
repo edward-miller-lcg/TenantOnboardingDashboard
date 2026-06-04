@@ -1,0 +1,47 @@
+<div class="page-content">
+  <app-onboarding-breadcrumb [token]="token" currentStep="ConnectionTest" />
+  <div class="contact-support"><a href="https://servicenow.example.com" target="_blank">Contact support</a></div>
+
+  <h1 class="page-title">Connection Test</h1>
+
+  @if (result === null) {
+    <p>This test verifies that NHSNLink can connect to your EHR's FHIR server using the credentials you provided. Enter a valid Patient FHIR ID from your system to confirm connectivity.</p>
+
+    <form [formGroup]="form">
+      <div class="nhsn-form-group">
+        <label for="pid">
+          Patient FHIR ID
+          <span class="tooltip-icon" title="Patient ID that can be reached through FHIR API">?</span>
+        </label>
+        <input id="pid" type="text" formControlName="patientFhirId" />
+        @if (form.controls.patientFhirId.touched && form.controls.patientFhirId.hasError('required')) {
+          <div class="field-error">Patient FHIR ID is required.</div>
+        }
+      </div>
+      <button type="button" class="nhsn-btn nhsn-btn-primary" [disabled]="testing" (click)="test()">
+        {{ testing ? 'Testing...' : 'Test connection' }}
+      </button>
+    </form>
+  }
+
+  @if (result === 'success') {
+    <div class="nhsn-success-msg">
+      <span class="result-icon">&#10003;</span>
+      Successfully connected to FHIR server!
+    </div>
+    <button class="nhsn-btn nhsn-btn-primary" (click)="continue()">Continue</button>
+  }
+
+  @if (result === 'failure') {
+    <div class="nhsn-error-msg">
+      <span class="result-icon">&#9888;</span>
+      Unable to connect to FHIR server.
+    </div>
+    <div class="error-details-box">
+      <strong>Error details:</strong>
+      <p>{{ errorDetails }}</p>
+    </div>
+    <p><a href="https://servicenow.example.com" target="_blank">Contact Support</a></p>
+    <button class="nhsn-btn" (click)="goBack()">Go back</button>
+  }
+</div>

@@ -1,0 +1,63 @@
+<div class="page-content">
+  <app-onboarding-breadcrumb [token]="token" currentStep="Normalizations" />
+  <div class="contact-support"><a href="https://servicenow.example.com" target="_blank">Contact support</a></div>
+
+  <h1 class="page-title">Copy Property</h1>
+
+  <form [formGroup]="form">
+    <div class="nhsn-form-group">
+      <label>Name <span class="tooltip-icon" title="Name that the facility will use to identify this normalization">?</span></label>
+      <input type="text" formControlName="name" />
+      @if (form.controls.name.touched && form.controls.name.hasError('required')) {
+        <div class="field-error">Name is required.</div>
+      }
+    </div>
+
+    <div class="nhsn-form-group">
+      <label>Description <span class="tooltip-icon" title="Description of what this normalization is used for">?</span></label>
+      <input type="text" formControlName="description" />
+    </div>
+
+    <div class="nhsn-form-group">
+      <label>Resource Type <span class="tooltip-icon" title="Resource type that this normalization will apply to">?</span></label>
+      <select formControlName="resourceType">
+        <option value="">Select</option>
+        @for (rt of resourceTypes; track rt) { <option [value]="rt">{{ rt }}</option> }
+      </select>
+      @if (form.controls.resourceType.touched && form.controls.resourceType.hasError('required')) {
+        <div class="field-error">Resource Type is required.</div>
+      }
+    </div>
+
+    <div class="field-row">
+      <div class="nhsn-form-group">
+        <label>Source FHIR Path <span class="tooltip-icon" title="Path to the property that will be copied from">?</span></label>
+        <input type="text" formControlName="sourceFhirPath" />
+        @if (form.controls.sourceFhirPath.touched && form.controls.sourceFhirPath.hasError('required')) {
+          <div class="field-error">Source FHIR Path is required.</div>
+        }
+      </div>
+      <div class="nhsn-form-group">
+        <label>Target FHIR Path <span class="tooltip-icon" title="Path that the property will be copied to">?</span></label>
+        <input type="text" formControlName="targetFhirPath" />
+        @if (form.controls.targetFhirPath.touched && form.controls.targetFhirPath.hasError('required')) {
+          <div class="field-error">Target FHIR Path is required.</div>
+        }
+      </div>
+    </div>
+
+    <div class="nhsn-checkbox-group">
+      <input type="checkbox" id="enabled" formControlName="enabled" />
+      <label for="enabled">Enabled <span class="tooltip-icon" title="Whether the normalization will run or not during a report creation">?</span></label>
+    </div>
+
+    @if (error) { <div class="nhsn-error-msg">{{ error }}</div> }
+
+    <div class="btn-row">
+      <button type="button" class="nhsn-btn nhsn-btn-primary" [disabled]="saving" (click)="save()">
+        {{ saving ? 'Saving...' : 'Save changes' }}
+      </button>
+      <button type="button" class="nhsn-btn" (click)="cancel()">Cancel</button>
+    </div>
+  </form>
+</div>

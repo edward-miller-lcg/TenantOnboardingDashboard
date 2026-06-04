@@ -1,0 +1,17 @@
+<div class="page-content">
+  <app-onboarding-breadcrumb [token]="token" currentStep="VerifyPoi" />
+  <div class="contact-support"><a href="https://servicenow.example.com" target="_blank">Contact support</a></div>
+
+  <h1 class="page-title">Verify Patients of Interest</h1>
+  <p>Your patients of interest list has been compiled. Review the list to confirm the patients are correct. Verify that the count is within the expected threshold (within 5% of your manual census) before proceeding.</p>
+
+  <p><a href="javascript:void(0)">View patients of interest</a></p>
+
+  <p>If everything looks correct, click the button below to proceed with onboarding activities. If not, please <a href="https://servicenow.example.com" target="_blank">contact support</a> for assistance.</p>
+
+  <div style="margin-top: 20px;">
+    <button class="nhsn-btn nhsn-btn-primary" [disabled]="saving" (click)="confirm()">
+      {{ saving ? 'Confirming...' : 'I confirm that the patients of interest are correct' }}
+    </button>
+  </div>
+</div>

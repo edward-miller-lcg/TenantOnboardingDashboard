@@ -1,0 +1,58 @@
+<div class="page-content">
+  <app-onboarding-breadcrumb [token]="token" currentStep="PatientsOfInterest" />
+  <div class="contact-support"><a href="https://servicenow.example.com" target="_blank">Contact support</a></div>
+
+  <h1 class="page-title">Patients of Interest</h1>
+
+  @if (isEpic) {
+    <p>Configure the patient list APIs that NHSNLink will use to identify patients of interest. Create patient list profiles in your Epic system, then provide the FHIR IDs of those lists below. At least 6 IDs are required.</p>
+    <form [formGroup]="epicForm">
+      <div class="nhsn-form-group">
+        <label for="listIds">
+          Patient List IDs (comma separated)
+          <span class="tooltip-icon" title="FHIR IDs of the lists created above">?</span>
+        </label>
+        <input id="listIds" type="text" formControlName="patientListIds"
+               placeholder="e.g. 123,456,789" style="max-width:600px" />
+        @if (epicForm.controls.patientListIds.touched && epicForm.controls.patientListIds.hasError('required')) {
+          <div class="field-error">Patient List IDs are required.</div>
+        }
+      </div>
+      @if (error) { <div class="nhsn-error-msg">{{ error }}</div> }
+      <button type="button" class="nhsn-btn nhsn-btn-primary"
+              [disabled]="saving || epicForm.invalid" (click)="save()">
+        {{ saving ? 'Saving...' : 'Save &amp; continue' }}
+      </button>
+    </form>
+  } @else {
+    <p>Configure sFTP access so NHSNLink can retrieve the patient census from your Cerner system. Use the CCL scripts provided by your Cerner representative to set up the sFTP export.</p>
+    <form [formGroup]="cernerForm">
+      <div class="nhsn-form-group">
+        <label for="sftpUrl">sFTP URL <span class="tooltip-icon" title="URL where the sFTP server can be reached">?</span></label>
+        <input id="sftpUrl" type="text" formControlName="sftpUrl" placeholder="sftp://example.com" />
+        @if (cernerForm.controls.sftpUrl.touched && cernerForm.controls.sftpUrl.hasError('required')) {
+          <div class="field-error">sFTP URL is required.</div>
+        }
+      </div>
+      <div class="nhsn-form-group">
+        <label for="sftpUser">sFTP Username <span class="tooltip-icon" title="Username that NHSNLink will use to connect to the sFTP server">?</span></label>
+        <input id="sftpUser" type="text" formControlName="sftpUsername" />
+        @if (cernerForm.controls.sftpUsername.touched && cernerForm.controls.sftpUsername.hasError('required')) {
+          <div class="field-error">sFTP Username is required.</div>
+        }
+      </div>
+      <div class="nhsn-form-group">
+        <label for="sftpPass">sFTP Password <span class="tooltip-icon" title="Password that NHSNLink will use to connect to the sFTP server">?</span></label>
+        <input id="sftpPass" type="password" formControlName="sftpPassword" />
+        @if (cernerForm.controls.sftpPassword.touched && cernerForm.controls.sftpPassword.hasError('required')) {
+          <div class="field-error">sFTP Password is required.</div>
+        }
+      </div>
+      @if (error) { <div class="nhsn-error-msg">{{ error }}</div> }
+      <button type="button" class="nhsn-btn nhsn-btn-primary"
+              [disabled]="saving || cernerForm.invalid" (click)="save()">
+        {{ saving ? 'Saving...' : 'Save &amp; continue' }}
+      </button>
+    </form>
+  }
+</div>

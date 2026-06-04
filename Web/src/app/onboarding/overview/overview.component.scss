@@ -1,0 +1,19 @@
+.checklist { margin-top: 8px; }
+
+.checklist__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+  font-size: 1rem;
+
+  &.disabled { opacity: 0.5; }
+}
+
+.check {
+  font-size: 1.1rem;
+  color: #5b616b;
+  &.checked { color: #2e8540; }
+}
+
+.step-label-gray { color: #5b616b; }

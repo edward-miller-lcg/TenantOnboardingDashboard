@@ -1,0 +1,58 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  Reusable template: Update an Azure Container App to a new image tag.
+#  Creates a new revision; Container Apps handles the traffic cutover.
+#
+#  Parameters:
+#    azureServiceConnection - Azure service connection with Contributor on the RG
+#    resourceGroup          - resource group containing the Container App
+#    containerAppName       - name of the Container App to update
+#    acrLoginServer         - e.g. nhsnobdevacr.azurecr.io
+#    imageName              - e.g. nhsnlink-onboarding-service
+#    imageTag               - the tag to deploy
+# ─────────────────────────────────────────────────────────────────────────────
+parameters:
+  - name: azureServiceConnection
+    type: string
+
+  - name: resourceGroup
+    type: string
+
+  - name: containerAppName
+    type: string
+
+  - name: acrLoginServer
+    type: string
+
+  - name: imageName
+    type: string
+
+  - name: imageTag
+    type: string
+
+steps:
+  - task: AzureCLI@2
+    displayName: 'Update ${{ parameters.containerAppName }} → :${{ parameters.imageTag }}'
+    inputs:
+      azureSubscription: '${{ parameters.azureServiceConnection }}'
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -euo pipefail
+
+        IMAGE="${{ parameters.acrLoginServer }}/${{ parameters.imageName }}:${{ parameters.imageTag }}"
+        echo "Deploying image: $IMAGE"
+
+        az containerapp update \
+          --name      "${{ parameters.containerAppName }}" \
+          --resource-group "${{ parameters.resourceGroup }}" \
+          --image     "$IMAGE"
+
+        # Wait for the new revision to become active
+        echo "Waiting for revision to become active..."
+        az containerapp revision list \
+          --name "${{ parameters.containerAppName }}" \
+          --resource-group "${{ parameters.resourceGroup }}" \
+          --query "[?properties.active].{name:name, replicas:properties.replicas, state:properties.runningState}" \
+          --output table
+
+        echo "Deployment complete."

@@ -1,0 +1,17 @@
+.contact-support { text-align: right; margin-bottom: 8px; }
+.section-heading { font-size: 1.25rem; font-weight: 700; margin: 20px 0 8px; }
+.help-icon { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: #0071BC; color: white; font-size: 0.75rem; font-weight: 700; margin-right: 6px; }
+.report-summary-box { display: flex; gap: 0; border: 1px solid #d6d7d9; margin: 12px 0; }
+.summary-item { flex: 1; padding: 12px 16px; border-right: 1px solid #d6d7d9; &:last-child { border-right: none; } }
+.summary-label { display: block; font-weight: 700; font-size: 0.875rem; margin-bottom: 4px; }
+.result-badge { display: inline-block; padding: 2px 8px; font-size: 0.8125rem; border-radius: 2px; }
+.result-failed { background: #fde8e8; color: #D93025; }
+.result-success { background: #e1f3e8; color: #2e8540; }
+.bar-chart { margin: 8px 0 16px; }
+.bar-row { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+.bar-label { width: 160px; font-size: 0.8125rem; text-align: right; flex-shrink: 0; }
+.bar-track { flex: 1; height: 20px; background: #f1f1f1; border: 1px solid #d6d7d9; }
+.bar-fill { height: 100%; transition: width 0.3s; }
+.bar-unacceptable { background: #D93025; }
+.bar-acceptable { background: #aeb0b5; }
+.bar-count { width: 40px; font-size: 0.8125rem; }

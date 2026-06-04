@@ -1,0 +1,42 @@
+<div class="page-content">
+  <app-onboarding-breadcrumb [token]="token" currentStep="TestReport" />
+  <div class="contact-support"><a href="https://servicenow.example.com" target="_blank">Contact support</a></div>
+
+  <h1 class="page-title">Prequalification Report</h1>
+  <p>
+    <a [routerLink]="['/onboarding', token, 'prequalification', reportId]">&lsaquo; Back to Categories</a>
+  </p>
+
+  @if (loading) {
+    <p>Loading...</p>
+  } @else if (!detail) {
+    <p>Category not found.</p>
+  } @else {
+    <div class="cat-summary-box">
+      <div><span class="summary-label">Category</span> {{ detail.category }}</div>
+      <div><span class="summary-label">Guidance</span> {{ detail.guidance }}</div>
+      <div><span class="summary-label">Acceptable</span> {{ detail.acceptable ? 'Yes' : 'No' }}</div>
+    </div>
+
+    <h2 class="section-heading">{{ detail.category }}</h2>
+    <p class="reported-count">Reported issues: {{ detail.issues.length }}</p>
+
+    <table class="nhsn-table">
+      <thead>
+        <tr><th>Message</th><th>Expression</th><th>Location</th></tr>
+      </thead>
+      <tbody>
+        @for (issue of detail.issues; track $index) {
+          <tr>
+            <td>{{ issue.message }}</td>
+            <td style="font-family: monospace; font-size: 0.8125rem;">{{ issue.expression }}</td>
+            <td>{{ issue.location }}</td>
+          </tr>
+        }
+        @if (detail.issues.length === 0) {
+          <tr><td colspan="3">No individual issues to display.</td></tr>
+        }
+      </tbody>
+    </table>
+  }
+</div>

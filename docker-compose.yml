@@ -1,0 +1,109 @@
+# NHSNLink Tenant Onboarding — Docker Compose
+#
+# Includes the full link-cloud stack and adds the two onboarding services.
+# Requires Docker Compose v2.20+ (`docker compose version` to check).
+#
+# Usage:
+#   docker compose up --build
+#
+# Onboarding app → http://localhost:4200
+# Admin page     → http://localhost:4200/admin
+# API (direct)   → http://localhost:5100/openapi/v1.json
+
+include:
+  - path: ../link-cloud/docker-compose.yml
+    project_directory: ../link-cloud
+    env_file: .env
+
+services:
+
+  # ─────────────────────────────────────────────────────
+  #  Create the onboarding database in the shared SQL Server
+  # ─────────────────────────────────────────────────────
+  mssql_onboarding_init:
+    image: mcr.microsoft.com/mssql-tools
+    container_name: sql-onboarding-init
+    environment:
+      LINK_DB_PASS: ${LINK_DB_PASS}
+    volumes:
+      - type: bind
+        source: .docker/create-onboarding-db.sql
+        target: /create-onboarding-db.sql
+    command: >
+      bash -c "
+        until /opt/mssql-tools/bin/sqlcmd -S mssql -U sa -P \"$$LINK_DB_PASS\" -Q 'SELECT 1' > /dev/null 2>&1;
+        do echo 'Waiting for SQL Server...'; sleep 2; done &&
+        /opt/mssql-tools/bin/sqlcmd -S mssql -U sa -P \"$$LINK_DB_PASS\" -i /create-onboarding-db.sql &&
+        echo 'Onboarding database ready.'
+      "
+    restart: "no"
+    depends_on:
+      mssql:
+        condition: service_healthy
+      mssql_init:
+        condition: service_completed_successfully
+    networks:
+      - link-nw
+
+  # ─────────────────────────────────────────────────────
+  #  NHSNLink Onboarding API — ASP.NET Core 10
+  # ─────────────────────────────────────────────────────
+  onboarding-service:
+    image: nhsnlink-onboarding-service
+    container_name: nhsnlink-onboarding-service
+    build:
+      context: .
+      dockerfile: DotNet/OnboardingService/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Docker
+      ASPNETCORE_HTTP_PORTS: "5100"
+      ConnectionStrings__DatabaseConnection: "Server=tcp:mssql,1433;Initial Catalog=link-onboarding;Persist Security Info=False;User ID=sa;Password=${LINK_DB_PASS};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=True;Connection Timeout=30;"
+      ServiceRegistry__TenantServiceUrl: http://tenant:8074
+      ServiceRegistry__DataAcquisitionServiceUrl: http://dataacq:8065
+      ServiceRegistry__ReportServiceUrl: http://report:8072
+      ServiceRegistry__NormalizationServiceUrl: http://normalization:8068
+      Cors__AllowedOrigins__0: http://localhost:4200
+      Cors__AllowedOrigins__1: http://onboarding-web
+    ports:
+      - "5100:5100"
+    depends_on:
+      mssql_onboarding_init:
+        condition: service_completed_successfully
+      tenant:
+        condition: service_healthy
+      dataacq:
+        condition: service_healthy
+      report:
+        condition: service_healthy
+      normalization:
+        condition: service_healthy
+    networks:
+      - link-nw
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:5100/health || exit 1"]
+      start_period: 20s
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────
+  #  NHSNLink Onboarding Web App — Angular 21 / nginx
+  # ─────────────────────────────────────────────────────
+  onboarding-web:
+    image: nhsnlink-onboarding-web
+    container_name: nhsnlink-onboarding-web
+    build:
+      context: Web
+      dockerfile: Dockerfile
+    environment:
+      # Overrides the Dockerfile default — container name resolved inside link-nw
+      API_URL: http://onboarding-service:5100
+    ports:
+      - "4200:80"
+    depends_on:
+      onboarding-service:
+        condition: service_healthy
+    networks:
+      - link-nw
+    restart: unless-stopped

@@ -1,0 +1,67 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  PR Validation Pipeline
+#  Runs on every Pull Request targeting main or develop.
+#  Builds + tests both services. Does NOT push images or touch Azure.
+#
+#  ADO setup: create this pipeline and set it as a branch policy on main.
+# ─────────────────────────────────────────────────────────────────────────────
+trigger: none   # Only runs as a PR check, never on direct push
+
+pr:
+  branches:
+    include:
+      - main
+      - develop
+  paths:
+    exclude:
+      - infrastructure/**
+      - pipelines/**
+      - '**/*.md'
+
+pool:
+  vmImage: ubuntu-latest
+
+stages:
+
+  # ─────────────────────────────────────────────────────────────────────────
+  - stage: Validate
+    displayName: PR Validation
+    jobs:
+
+      # ── .NET Backend ──────────────────────────────────────────────────────
+      - job: BackendValidation
+        displayName: Build & Test Backend (.NET 10)
+        steps:
+          - template: templates/steps-build-dotnet.yml
+            parameters:
+              configuration: Release
+              runTests: true
+              publishArtifact: false
+
+      # ── Angular Frontend ──────────────────────────────────────────────────
+      - job: FrontendValidation
+        displayName: Build Frontend (Angular 21)
+        steps:
+          - template: templates/steps-build-angular.yml
+            parameters:
+              publishArtifact: false
+
+      # ── Docker build check (no push) ──────────────────────────────────────
+      # Validates Dockerfiles compile without pushing to a registry.
+      - job: DockerValidation
+        displayName: Docker Build Check (no push)
+        dependsOn: []   # Run in parallel with the above
+        steps:
+          - script: |
+              docker build \
+                -f DotNet/OnboardingService/Dockerfile \
+                -t nhsnlink-onboarding-service:pr-check \
+                .
+            displayName: 'docker build — onboarding-service'
+
+          - script: |
+              docker build \
+                -f Web/Dockerfile \
+                -t nhsnlink-onboarding-web:pr-check \
+                Web/
+            displayName: 'docker build — onboarding-web'

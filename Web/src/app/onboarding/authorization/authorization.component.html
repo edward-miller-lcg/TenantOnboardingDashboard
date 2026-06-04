@@ -1,0 +1,20 @@
+<div class="page-content">
+  <app-onboarding-breadcrumb [token]="token" currentStep="Authorization" />
+  <div class="contact-support"><a href="https://servicenow.example.com" target="_blank">Contact support</a></div>
+
+  <h1 class="page-title">Authorization</h1>
+
+  <p>To allow NHSNLink to access your EHR data, your facility must complete the vendor-specific authorization setup. NHSNLink uses SMART on FHIR backend services authorization. Your EHR system administrator must register NHSNLink as an authorized application within your {{ vendor }} environment before proceeding.</p>
+  <p>Once the setup is complete in your {{ vendor }} environment, check the box below to confirm and continue.</p>
+
+  <div class="nhsn-checkbox-group" style="margin-top: 20px;">
+    <input type="checkbox" id="confirmed" [(ngModel)]="confirmed" />
+    <label for="confirmed">{{ checkboxLabel }}</label>
+  </div>
+
+  <div style="margin-top: 16px;">
+    <button class="nhsn-btn nhsn-btn-primary" [disabled]="!confirmed || saving" (click)="save()">
+      {{ saving ? 'Saving...' : 'Save &amp; continue' }}
+    </button>
+  </div>
+</div>

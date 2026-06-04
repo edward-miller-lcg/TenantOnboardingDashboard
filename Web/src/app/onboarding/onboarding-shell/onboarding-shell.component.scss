@@ -1,0 +1,10 @@
+.shell-body {
+  display: flex;
+  min-height: calc(100vh - 88px);
+}
+
+.shell-main {
+  flex: 1;
+  background: white;
+  overflow-y: auto;
+}

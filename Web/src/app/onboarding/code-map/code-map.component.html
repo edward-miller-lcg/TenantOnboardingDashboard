@@ -1,0 +1,86 @@
+<div class="page-content">
+  <app-onboarding-breadcrumb [token]="token" currentStep="Normalizations" />
+  <div class="contact-support"><a href="https://servicenow.example.com" target="_blank">Contact support</a></div>
+
+  <h1 class="page-title">Code Map</h1>
+
+  <form [formGroup]="form">
+    <div class="field-row">
+      <div class="nhsn-form-group">
+        <label>Name <span class="tooltip-icon" title="Name for the facility to identify this code map">?</span></label>
+        <input type="text" formControlName="name" />
+        @if (form.controls.name.touched && form.controls.name.hasError('required')) {
+          <div class="field-error">Name is required.</div>
+        }
+      </div>
+      <div class="nhsn-form-group">
+        <label>Description <span class="tooltip-icon" title="Description of what this code map is used for">?</span></label>
+        <input type="text" formControlName="description" />
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="nhsn-form-group">
+        <label>Resource Type <span class="tooltip-icon" title="Resource type that this code map will apply to">?</span></label>
+        <select formControlName="resourceType">
+          <option value="">Select</option>
+          @for (rt of resourceTypes; track rt) { <option [value]="rt">{{ rt }}</option> }
+        </select>
+        @if (form.controls.resourceType.touched && form.controls.resourceType.hasError('required')) {
+          <div class="field-error">Resource Type is required.</div>
+        }
+      </div>
+      <div class="nhsn-form-group">
+        <label>FHIR Path <span class="tooltip-icon" title="Path to the property that will be mapped">?</span></label>
+        <input type="text" formControlName="fhirPath" placeholder="e.g. location.type" />
+        @if (form.controls.fhirPath.touched && form.controls.fhirPath.hasError('required')) {
+          <div class="field-error">FHIR Path is required.</div>
+        }
+      </div>
+    </div>
+
+    @for (map of maps.controls; track $index; let mi = $index) {
+      <div class="code-system-map-box">
+        <div class="csm-header">
+          <div class="nhsn-form-group" style="margin:0">
+            <label>Source System <span class="tooltip-icon" title="Local code system that will be mapped">?</span></label>
+            <input type="text" [formControl]="$any(map).get('sourceSystem')" />
+          </div>
+          <div class="nhsn-form-group" style="margin:0">
+            <label>Target System <span class="tooltip-icon" title="Target code system for this code map">?</span></label>
+            <input type="text" [formControl]="$any(map).get('targetSystem')" />
+          </div>
+          <button type="button" class="nhsn-btn" (click)="removeMap(mi)" title="Delete map">&#128465;</button>
+        </div>
+
+        <table class="nhsn-table">
+          <thead><tr><th>Source Code</th><th>Target Code</th><th>Display</th><th>Actions</th></tr></thead>
+          <tbody>
+            @for (code of codesOf(mi).controls; track $index; let ci = $index) {
+              <tr>
+                <td><input type="text" [formControl]="$any(code).get('sourceCode')" class="table-input" /></td>
+                <td><input type="text" [formControl]="$any(code).get('targetCode')" class="table-input" /></td>
+                <td><input type="text" [formControl]="$any(code).get('display')" class="table-input" /></td>
+                <td><a href="javascript:void(0)" (click)="removeCode(mi, ci)" class="delete-link">Delete</a></td>
+              </tr>
+            }
+          </tbody>
+        </table>
+        <button type="button" class="nhsn-btn" (click)="addCode(mi)">Add code</button>
+      </div>
+    }
+
+    <div style="margin-bottom: 16px;">
+      <button type="button" class="nhsn-btn" (click)="addMap()">Add code system map</button>
+    </div>
+
+    @if (error) { <div class="nhsn-error-msg">{{ error }}</div> }
+
+    <div class="btn-row">
+      <button type="button" class="nhsn-btn nhsn-btn-primary" [disabled]="saving" (click)="save()">
+        {{ saving ? 'Saving...' : 'Save changes' }}
+      </button>
+      <button type="button" class="nhsn-btn" (click)="cancel()">Cancel</button>
+    </div>
+  </form>
+</div>

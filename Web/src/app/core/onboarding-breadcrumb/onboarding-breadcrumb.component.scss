@@ -1,0 +1,15 @@
+.ob-breadcrumb {
+  font-size: 0.8125rem;
+  margin-bottom: 8px;
+  color: #5b616b;
+
+  &__link {
+    color: #0071BC;
+    text-decoration: none;
+    &:hover { text-decoration: underline; }
+  }
+
+  &__sep { color: #5b616b; margin: 0 4px; }
+
+  &__current { color: #212121; }
+}

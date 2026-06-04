@@ -1,0 +1,50 @@
+<div class="page-content">
+  <app-onboarding-breadcrumb [token]="token" currentStep="Normalizations" />
+  <div class="contact-support">
+    <a href="https://servicenow.example.com" target="_blank">Contact Support</a>
+  </div>
+
+  <h1 class="page-title">Normalizations</h1>
+  <p>Review and manage data normalizations applied to your FHIR data before report generation. Use the sort arrows to change the order normalizations are applied. HSLOC Code Map and Encounter.type cannot be deleted.</p>
+
+  @if (loading) {
+    <p>Loading normalizations...</p>
+  } @else {
+    <div class="norm-list">
+      @for (item of normalizations; track item.id) {
+        <div class="norm-item">
+          <div class="norm-info">
+            <div class="norm-name">{{ item.name }}</div>
+            <div class="norm-type">{{ typeLabel(item.type) }}</div>
+          </div>
+          <div class="norm-actions">
+            <button class="nhsn-btn" (click)="edit(item)">Edit</button>
+            @if (item.canDelete) {
+              <button class="nhsn-btn" (click)="delete(item)">Delete</button>
+            }
+          </div>
+        </div>
+      }
+      @if (normalizations.length === 0) {
+        <p style="color:#5b616b; margin: 12px 0;">No normalizations configured yet.</p>
+      }
+    </div>
+
+    <div class="add-menu-container">
+      <button class="nhsn-btn" (click)="addMenuOpen = !addMenuOpen">
+        Add new normalization &#9660;
+      </button>
+      @if (addMenuOpen) {
+        <div class="add-dropdown">
+          <button (click)="addNew('code-map')">Code Map</button>
+          <button (click)="addNew('copy-property')">Copy Property</button>
+          <button (click)="addNew('conditional')">Conditional Transformation</button>
+        </div>
+      }
+    </div>
+  }
+
+  <div style="margin-top: 16px;">
+    <button class="nhsn-btn" [routerLink]="['/onboarding', token, 'test-reports']">Back</button>
+  </div>
+</div>

@@ -1,0 +1,39 @@
+<div class="page-content">
+  <app-onboarding-breadcrumb [token]="token" currentStep="ServerInfo" />
+  <div class="contact-support"><a href="https://servicenow.example.com" target="_blank">Contact support</a></div>
+
+  <h1 class="page-title">Server Information</h1>
+
+  <form [formGroup]="form">
+    <div class="nhsn-form-group">
+      <label for="fhirUrl">FHIR R4 Rest Base URL (Production)</label>
+      <input id="fhirUrl" type="url" formControlName="fhirBaseUrl"
+             placeholder="ex: https://mydomain.com/api/FHIR/R4" style="max-width:500px" />
+      @if (form.controls.fhirBaseUrl.touched && form.controls.fhirBaseUrl.hasError('required')) {
+        <div class="field-error">URL is required.</div>
+      }
+      @if (form.controls.fhirBaseUrl.touched && form.controls.fhirBaseUrl.hasError('pattern')) {
+        <div class="field-error">Must be a valid URL starting with http:// or https://</div>
+      }
+    </div>
+
+    <div class="nhsn-form-group">
+      <label for="vendor">EHR Vendor</label>
+      <select id="vendor" formControlName="ehrVendor">
+        @for (v of vendors; track v.value) {
+          <option [value]="v.value" [disabled]="v.disabled"
+                  [style.color]="v.disabled ? '#9e9e9e' : ''">{{ v.label }}</option>
+        }
+      </select>
+    </div>
+
+    @if (error) { <div class="nhsn-error-msg">{{ error }}</div> }
+
+    <div class="btn-row">
+      <button type="button" class="nhsn-btn nhsn-btn-primary" [disabled]="saving" (click)="save(true)">
+        {{ saving ? 'Saving...' : 'Save &amp; continue' }}
+      </button>
+      <button type="button" class="nhsn-btn" [disabled]="saving" (click)="save(false)">Save</button>
+    </div>
+  </form>
+</div>

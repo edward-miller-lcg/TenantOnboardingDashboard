@@ -1,0 +1,82 @@
+<app-nhsn-header />
+
+<div class="admin-container">
+  <h1 class="page-title">NHSNLink Onboarding — Admin</h1>
+  <p class="admin-desc">Generate a unique onboarding URL for a facility. Send the URL to the facility user to begin self-service onboarding.</p>
+
+  <section class="admin-form-section">
+    <h2>Generate Onboarding URL</h2>
+    <form [formGroup]="form" (ngSubmit)="generate()">
+      <div class="nhsn-form-group">
+        <label for="nhsnOrgId">NHSN Org ID <span class="required-mark">*</span></label>
+        <input id="nhsnOrgId" type="text" formControlName="nhsnOrgId" placeholder="e.g. 12345" />
+        @if (form.controls.nhsnOrgId.touched && form.controls.nhsnOrgId.hasError('required')) {
+          <div class="field-error">NHSN Org ID is required.</div>
+        }
+        @if (form.controls.nhsnOrgId.touched && form.controls.nhsnOrgId.hasError('pattern')) {
+          <div class="field-error">Must be numeric.</div>
+        }
+      </div>
+
+      <div class="nhsn-form-group">
+        <label for="healthSystemName">Health System Name <span class="required-mark">*</span></label>
+        <input id="healthSystemName" type="text" formControlName="healthSystemName" placeholder="e.g. My Health System" />
+        @if (form.controls.healthSystemName.touched && form.controls.healthSystemName.hasError('required')) {
+          <div class="field-error">Health System Name is required.</div>
+        }
+      </div>
+
+      @if (error) {
+        <div class="nhsn-error-msg">{{ error }}</div>
+      }
+
+      <button type="submit" class="nhsn-btn nhsn-btn-primary" [disabled]="loading">
+        {{ loading ? 'Generating...' : 'Generate Onboarding URL' }}
+      </button>
+    </form>
+  </section>
+
+  @if (lastCreated) {
+    <section class="generated-url-section">
+      <h2>✓ Onboarding URL Generated</h2>
+      <p><strong>Facility:</strong> {{ lastCreated.healthSystemName }} (NHSN Org ID: {{ lastCreated.nhsnOrgId }})</p>
+      <div class="url-box">
+        <span class="url-text">{{ lastCreated.onboardingUrl }}</span>
+        <button class="nhsn-btn" (click)="copyUrl()">
+          {{ copied ? 'Copied!' : 'Copy URL' }}
+        </button>
+      </div>
+      <p class="field-hint">Send this URL to the facility user. It does not expire.</p>
+    </section>
+  }
+
+  <section class="sessions-section">
+    <h2>All Onboarding Sessions</h2>
+    @if (sessions.length === 0) {
+      <p>No sessions yet.</p>
+    } @else {
+      <table class="nhsn-table">
+        <thead>
+          <tr>
+            <th>NHSN Org ID</th>
+            <th>Health System</th>
+            <th>Status</th>
+            <th>Created</th>
+            <th>Onboarding URL</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (s of sessions; track s.id) {
+            <tr>
+              <td>{{ s.nhsnOrgId }}</td>
+              <td>{{ s.healthSystemName }}</td>
+              <td><span [class]="'status-badge status-' + s.status.toLowerCase()">{{ s.status }}</span></td>
+              <td>{{ s.createdAt | date:'short' }}</td>
+              <td><a [href]="'/onboarding/' + s.token" target="_blank">Open ↗</a></td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+  </section>
+</div>

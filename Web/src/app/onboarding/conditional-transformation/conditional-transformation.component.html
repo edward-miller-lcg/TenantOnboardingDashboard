@@ -1,0 +1,87 @@
+<div class="page-content">
+  <app-onboarding-breadcrumb [token]="token" currentStep="Normalizations" />
+  <div class="contact-support"><a href="https://servicenow.example.com" target="_blank">Contact support</a></div>
+
+  <h1 class="page-title">Conditional Transformation</h1>
+
+  <form [formGroup]="form">
+    <div class="nhsn-form-group">
+      <label>Name <span class="tooltip-icon" title="Name that the facility will use to identify this normalization">?</span></label>
+      <input type="text" formControlName="name" />
+      @if (form.controls.name.touched && form.controls.name.hasError('required')) {
+        <div class="field-error">Name is required.</div>
+      }
+    </div>
+
+    <div class="nhsn-form-group">
+      <label>Description <span class="tooltip-icon" title="Description of what this normalization is used for">?</span></label>
+      <input type="text" formControlName="description" />
+    </div>
+
+    <div class="nhsn-form-group">
+      <label>Resource Type <span class="tooltip-icon" title="Resource type that this normalization will apply to">?</span></label>
+      <select formControlName="resourceType">
+        <option value="">Select</option>
+        @for (rt of resourceTypes; track rt) { <option [value]="rt">{{ rt }}</option> }
+      </select>
+      @if (form.controls.resourceType.touched && form.controls.resourceType.hasError('required')) {
+        <div class="field-error">Resource Type is required.</div>
+      }
+    </div>
+
+    <div class="field-row">
+      <div class="nhsn-form-group">
+        <label>Target FHIR Path <span class="tooltip-icon" title="Path to the property that this transformation will apply to">?</span></label>
+        <input type="text" formControlName="targetFhirPath" />
+        @if (form.controls.targetFhirPath.touched && form.controls.targetFhirPath.hasError('required')) {
+          <div class="field-error">Target FHIR Path is required.</div>
+        }
+      </div>
+      <div class="nhsn-form-group">
+        <label>Target Value <span class="tooltip-icon" title="Value that the property will be set to">?</span></label>
+        <input type="text" formControlName="targetValue" />
+        @if (form.controls.targetValue.touched && form.controls.targetValue.hasError('required')) {
+          <div class="field-error">Target Value is required.</div>
+        }
+      </div>
+    </div>
+
+    <div class="conditions-box">
+      <span class="conditions-label">Conditions</span>
+      @for (cond of conditions.controls; track $index; let ci = $index) {
+        <div class="condition-row">
+          <div class="nhsn-form-group" style="margin:0;flex:1">
+            <label>FHIR Path <span class="tooltip-icon" title="Path to the property that this condition will be checked against">?</span></label>
+            <input type="text" [formControl]="$any(cond).get('fhirPath')" style="max-width:100%" />
+          </div>
+          <div class="nhsn-form-group" style="margin:0">
+            <label>Operator</label>
+            <select [formControl]="$any(cond).get('operator')">
+              @for (op of operators; track op) { <option [value]="op">{{ op }}</option> }
+            </select>
+          </div>
+          <div class="nhsn-form-group" style="margin:0;flex:1">
+            <label>Value (optional) <span class="tooltip-icon" title="Optional value that this condition will be checked against">?</span></label>
+            <input type="text" [formControl]="$any(cond).get('value')" style="max-width:100%" />
+          </div>
+          <button type="button" class="nhsn-btn" style="align-self:flex-end" (click)="removeCondition(ci)" title="Delete">&#128465;</button>
+        </div>
+      }
+      <button type="button" class="nhsn-btn" style="margin-top:8px" (click)="addCondition()">Add condition</button>
+    </div>
+
+    <div class="nhsn-checkbox-group" style="margin-top:16px">
+      <input type="checkbox" id="enabled" formControlName="enabled" />
+      <label for="enabled">Enabled <span class="tooltip-icon" title="Whether the normalization will run or not during a report creation">?</span></label>
+    </div>
+
+    @if (error) { <div class="nhsn-error-msg">{{ error }}</div> }
+
+    <div class="btn-row">
+      <button type="button" class="nhsn-btn nhsn-btn-primary" [disabled]="saving" (click)="save()">
+        {{ saving ? 'Saving...' : 'Save changes' }}
+      </button>
+      <button type="button" class="nhsn-btn" (click)="cancel()">Cancel</button>
+    </div>
+  </form>
+</div>

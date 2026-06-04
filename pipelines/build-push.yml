@@ -1,0 +1,110 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  Build & Push Pipeline
+#  Triggered on every merge to main.
+#  Builds both Docker images and pushes to ACR with Build ID + "latest" tags.
+#  Downstream: triggers the release pipeline via pipeline resource.
+#
+#  Required variable group: nhsnlink-onboarding-common
+#    ACR_NAME              - e.g. nhsnobdevacr
+#    ACR_LOGIN_SERVER      - e.g. nhsnobdevacr.azurecr.io
+#    AZURE_SERVICE_CONNECTION_DEV  - service connection name for dev subscription
+# ─────────────────────────────────────────────────────────────────────────────
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    exclude:
+      - infrastructure/**
+      - pipelines/**
+      - '**/*.md'
+
+pr: none   # Only triggered by direct merge, not PRs
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  - group: nhsnlink-onboarding-common
+  - name: imageTag
+    value: $(Build.BuildId)
+
+stages:
+
+  # ─── Stage 1: Build & Test ────────────────────────────────────────────────
+  - stage: BuildAndTest
+    displayName: Build & Test
+    jobs:
+
+      - job: BackendBuild
+        displayName: Backend (.NET 10)
+        steps:
+          - template: templates/steps-build-dotnet.yml
+            parameters:
+              configuration: Release
+              runTests: true
+
+      - job: FrontendBuild
+        displayName: Frontend (Angular 21)
+        steps:
+          - template: templates/steps-build-angular.yml
+
+  # ─── Stage 2: Build & Push Docker Images ─────────────────────────────────
+  - stage: BuildPushImages
+    displayName: Build & Push Docker Images
+    dependsOn: BuildAndTest
+    condition: succeeded()
+    jobs:
+
+      - job: PushServiceImage
+        displayName: Push onboarding-service
+        steps:
+          - checkout: self
+
+          - template: templates/steps-docker-build-push.yml
+            parameters:
+              azureServiceConnection: $(AZURE_SERVICE_CONNECTION_DEV)
+              acrLoginServer: $(ACR_LOGIN_SERVER)
+              imageName: nhsnlink-onboarding-service
+              dockerfile: DotNet/OnboardingService/Dockerfile
+              buildContext: '.'
+              imageTag: $(imageTag)
+              additionalTags: 'latest'
+
+      - job: PushWebImage
+        displayName: Push onboarding-web
+        steps:
+          - checkout: self
+
+          - template: templates/steps-docker-build-push.yml
+            parameters:
+              azureServiceConnection: $(AZURE_SERVICE_CONNECTION_DEV)
+              acrLoginServer: $(ACR_LOGIN_SERVER)
+              imageName: nhsnlink-onboarding-web
+              dockerfile: Web/Dockerfile
+              buildContext: 'Web'
+              imageTag: $(imageTag)
+              additionalTags: 'latest'
+
+  # ─── Stage 3: Export build metadata ──────────────────────────────────────
+  # Publishes the image tag as an artifact so the release pipeline can pick it up.
+  - stage: PublishMetadata
+    displayName: Publish Build Metadata
+    dependsOn: BuildPushImages
+    condition: succeeded()
+    jobs:
+      - job: ExportTag
+        displayName: Export image tag
+        steps:
+          - script: |
+              echo "IMAGE_TAG=$(Build.BuildId)" > $(Build.ArtifactStagingDirectory)/build-meta.env
+              echo "COMMIT_SHA=$(Build.SourceVersion)" >> $(Build.ArtifactStagingDirectory)/build-meta.env
+              echo "BRANCH=$(Build.SourceBranchName)" >> $(Build.ArtifactStagingDirectory)/build-meta.env
+              cat $(Build.ArtifactStagingDirectory)/build-meta.env
+            displayName: 'Write build metadata'
+
+          - task: PublishBuildArtifacts@1
+            displayName: 'Publish build metadata artifact'
+            inputs:
+              PathtoPublish: '$(Build.ArtifactStagingDirectory)/build-meta.env'
+              ArtifactName: build-metadata

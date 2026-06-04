@@ -1,0 +1,76 @@
+<div class="page-content">
+  <app-onboarding-breadcrumb [token]="token" currentStep="EncounterTypeMapping" />
+  <div class="contact-support"><a href="https://servicenow.example.com" target="_blank">Contact support</a></div>
+
+  <h1 class="page-title">Encounter.type Mapping</h1>
+  <p>Map your local encounter type codes to standard SNOMED codes so NHSNLink can correctly classify patient encounters.</p>
+
+  <form [formGroup]="form">
+    <div class="nhsn-form-group fixed-fields">
+      <div class="field-pair">
+        <div>
+          <label>Resource Type</label>
+          <input type="text" value="Encounter" disabled />
+        </div>
+        <div>
+          <label>FHIR Path</label>
+          <input type="text" value="type" disabled />
+        </div>
+      </div>
+    </div>
+
+    @for (map of codeSystemMaps.controls; track $index; let mi = $index) {
+      <div class="code-system-map-box">
+        <div class="csm-header">
+          <div class="nhsn-form-group" style="margin:0">
+            <label>Source System <span class="tooltip-icon" title="Local code system that will be mapped">?</span></label>
+            <input type="text" [formControl]="$any(map).get('sourceSystem')" placeholder="e.g. http://local-codes.org" />
+          </div>
+          <div class="nhsn-form-group" style="margin:0">
+            <label>Target System</label>
+            <input type="text" [formControl]="$any(map).get('targetSystem')" [attr.disabled]="true" />
+          </div>
+          @if (codeSystemMaps.length > 1) {
+            <button type="button" class="nhsn-btn" (click)="removeMap(mi)" title="Delete map">&#128465;</button>
+          }
+        </div>
+
+        <table class="nhsn-table" style="margin-bottom:8px">
+          <thead>
+            <tr><th>Source Code</th><th>Target Code</th><th>Display</th><th></th></tr>
+          </thead>
+          <tbody>
+            @for (code of codesOf(mi).controls; track $index; let ci = $index) {
+              <tr>
+                <td><input type="text" [formControl]="$any(code).get('sourceCode')" style="width:100%;border:1px solid #d6d7d9;padding:4px" /></td>
+                <td>
+                  <select [formControl]="$any(code).get('targetCode')"
+                          (change)="onTargetCodeChange(mi, ci, $any($event.target).value)"
+                          style="width:100%;border:1px solid #d6d7d9;padding:4px">
+                    <option value=""></option>
+                    @for (sc of snomedCodes; track sc.code) {
+                      <option [value]="sc.code">{{ sc.code }}</option>
+                    }
+                  </select>
+                </td>
+                <td><input type="text" [formControl]="$any(code).get('display')" readonly style="width:100%;border:1px solid #d6d7d9;padding:4px;background:#f5f5f5" /></td>
+                <td><a href="javascript:void(0)" (click)="removeCode(mi, ci)" class="delete-link">Delete</a></td>
+              </tr>
+            }
+          </tbody>
+        </table>
+        <button type="button" class="nhsn-btn" (click)="addCode(mi)">Add code</button>
+      </div>
+    }
+
+    <div style="margin-bottom: 16px;">
+      <button type="button" class="nhsn-btn" (click)="addMap()">Add code system map</button>
+    </div>
+
+    @if (error) { <div class="nhsn-error-msg">{{ error }}</div> }
+
+    <button type="button" class="nhsn-btn nhsn-btn-primary" [disabled]="saving" (click)="save()">
+      {{ saving ? 'Saving...' : 'Save &amp; continue' }}
+    </button>
+  </form>
+</div>

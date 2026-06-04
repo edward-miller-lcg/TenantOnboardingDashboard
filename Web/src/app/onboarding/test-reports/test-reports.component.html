@@ -1,0 +1,57 @@
+<div class="page-content">
+  <app-onboarding-breadcrumb [token]="token" currentStep="TestReport" />
+  <div class="contact-support"><a href="https://servicenow.example.com" target="_blank">Contact support</a></div>
+
+  <h1 class="page-title">Test Reports</h1>
+
+  @if (loading) {
+    <p>Loading reports...</p>
+  } @else if (reports.length === 0) {
+    <p>No test reports yet. <a [routerLink]="['/onboarding', token, 'run-test-report']">Run your first report.</a></p>
+  } @else {
+    <table class="nhsn-table">
+      <thead>
+        <tr>
+          <th></th>
+          <th>Reporting period</th>
+          <th>Result</th>
+          <th>Unacceptable issues</th>
+          <th>Acceptable issues</th>
+          <th>Total patients</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (r of reports; track r.id) {
+          <tr>
+            <td><a href="javascript:void(0)" (click)="viewReport(r.id)">View</a></td>
+            <td>{{ r.startDate | date:'M/d/yyyy' }} – {{ r.endDate | date:'M/d/yyyy' }}</td>
+            <td><span [class]="'result-badge result-' + r.result.toLowerCase()">{{ r.result }}</span></td>
+            <td>{{ r.result === 'IN_PROGRESS' ? '–' : r.unacceptableIssues }}</td>
+            <td>{{ r.result === 'IN_PROGRESS' ? '–' : r.acceptableIssues }}</td>
+            <td>{{ r.result === 'IN_PROGRESS' ? '–' : r.totalPatients }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+
+  <div class="actions-row">
+    <button class="nhsn-btn" [routerLink]="['/onboarding', token, 'normalizations']">Normalizations</button>
+    <button class="nhsn-btn" [routerLink]="['/onboarding', token, 'run-test-report']">Run New Report</button>
+  </div>
+
+  @if (hasSuccessfulReport) {
+    <div class="success-banner">
+      <span class="nhsn-success-msg">
+        <span>&#10003;</span>
+        There is a successful test report. You can now set up your Digital Measure Reporting Plan and schedule reports.
+        <a href="#">Click here to learn more.</a>
+      </span>
+      <div style="margin-top: 12px;">
+        <button class="nhsn-btn nhsn-btn-primary" [disabled]="completing" (click)="completeOnboarding()">
+          {{ completing ? 'Completing...' : 'Complete Onboarding' }}
+        </button>
+      </div>
+    </div>
+  }
+</div>

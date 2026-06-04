@@ -1,0 +1,7 @@
+.success-check { font-size: 1.4rem; color: #2e8540; }
+.checklist__item {
+  display: flex; align-items: center; gap: 10px; padding: 4px 0;
+  .check.checked { color: #2e8540; }
+}
+.step-section-header { font-size: 1.5rem; font-weight: 700; margin: 20px 0 8px; }
+.submission-section { margin-top: 24px; padding-top: 16px; border-top: 1px solid #d6d7d9; }

@@ -1,0 +1,33 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  Reusable template: Build the Angular 21 frontend.
+#
+#  Parameters:
+#    publishArtifact - whether to publish dist/ as a pipeline artifact
+# ─────────────────────────────────────────────────────────────────────────────
+parameters:
+  - name: publishArtifact
+    type: boolean
+    default: false
+
+steps:
+  - task: NodeTool@0
+    displayName: 'Use Node 23'
+    inputs:
+      versionSpec: '23.x'
+
+  - script: npm ci
+    displayName: 'npm ci'
+    workingDirectory: Web
+
+  - script: npm run build
+    displayName: 'ng build (production)'
+    workingDirectory: Web
+    env:
+      NODE_ENV: production
+
+  - ${{ if eq(parameters.publishArtifact, true) }}:
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish frontend artifact'
+      inputs:
+        PathtoPublish: 'Web/dist/Web/browser'
+        ArtifactName: 'onboarding-web'
