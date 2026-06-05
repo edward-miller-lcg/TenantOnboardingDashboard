@@ -244,7 +244,10 @@ stages:
                         exit 0
                     env:
                       SQL_ADMIN_PASSWORD: $(SQL_ADMIN_PASSWORD)
-                      PARAM_IMAGE_TAG: ${{ parameters.environment == 'prod' && 'latest' || 'dev' }}
+                      ${{ if eq(parameters.environment, 'prod') }}:
+                        PARAM_IMAGE_TAG: latest
+                      ${{ else }}:
+                        PARAM_IMAGE_TAG: dev
 
                 - ${{ if eq(parameters.tool, 'terraform') }}:
                   - task: TerraformInstaller@1
