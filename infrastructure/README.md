@@ -239,6 +239,29 @@ The subscription is not registered to use namespace 'Microsoft.Sql'
 Resource providers are not registered. See [Resource provider registration](#resource-provider-registration-one-time-per-subscription) above.
 This is a one-time fix per subscription.
 
+> **Note:** `Microsoft.App` (Container Apps) can take 3–5 minutes to finish registering
+> even after `az provider register` returns. Always verify with
+> `az provider show --namespace Microsoft.App --query registrationState -o tsv`
+> before re-running a deployment.
+
+---
+
+### ProvisioningDisabled — SQL Server region restriction
+
+```
+Provisioning is restricted in this region. Please choose a different region.
+```
+
+Azure SQL is quota-restricted in `eastus` on Visual Studio subscriptions.
+**Use `eastus2` instead** — update `location` in the relevant `.bicepparam` file:
+
+```bicep
+param location = 'eastus2'
+```
+
+If `eastus2` also fails, try `southcentralus` or `westus2`. This is a subscription-tier
+limitation, not a code issue. A support request can increase quota if needed.
+
 ---
 
 ## CI/CD (GitHub Actions skeleton)

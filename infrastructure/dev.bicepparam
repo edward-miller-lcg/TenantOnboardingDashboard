@@ -8,7 +8,7 @@ using './main.bicep'
 
 param appName = 'nhsnob'
 param environment = 'dev'
-param location = 'eastus'
+param location = 'eastus2'
 
 // ─── Container App sizing ─────────────────────────────────────────────────────
 // Minimum consumption tier. Both containers scale to 0 when idle.
