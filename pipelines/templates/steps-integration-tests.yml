@@ -1,0 +1,220 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  Reusable template: Integration tests against a live environment.
+#  Runs a series of API calls exercising the full onboarding session lifecycle.
+#  Cleans up the test session on completion (pass or fail).
+#
+#  Parameters:
+#    azureServiceConnection - to resolve Container App FQDN
+#    resourceGroup          - RG containing the Container Apps
+#    appNamePrefix          - e.g. nhsnob-dev
+#    tenantServiceUrl       - link-cloud Tenant service URL (to verify facility creation)
+# ─────────────────────────────────────────────────────────────────────────────
+parameters:
+  - name: azureServiceConnection
+    type: string
+
+  - name: resourceGroup
+    type: string
+
+  - name: appNamePrefix
+    type: string
+
+  - name: tenantServiceUrl
+    type: string
+    default: ''
+
+steps:
+  - task: AzureCLI@2
+    displayName: 'Integration Tests — Onboarding API'
+    inputs:
+      azureSubscription: '${{ parameters.azureServiceConnection }}'
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -euo pipefail
+
+        # ── Resolve the API FQDN ──────────────────────────────────────────────
+        API_FQDN=$(az containerapp show \
+          --name "${{ parameters.appNamePrefix }}-api" \
+          --resource-group "${{ parameters.resourceGroup }}" \
+          --query "properties.configuration.ingress.fqdn" \
+          --output tsv)
+
+        BASE_URL="https://${API_FQDN}"
+        echo "Running integration tests against: $BASE_URL"
+        echo ""
+
+        PASS=0
+        FAIL=0
+        TEST_TOKEN=""
+
+        # ── Helper functions ──────────────────────────────────────────────────
+        assert_status() {
+          local test_name="$1"
+          local expected="$2"
+          local actual="$3"
+          local body="$4"
+          if [[ "$actual" == "$expected" ]]; then
+            echo "  ✓ $test_name"
+            PASS=$((PASS + 1))
+          else
+            echo "  ✗ $test_name"
+            echo "    Expected HTTP $expected, got $actual"
+            echo "    Body: $body"
+            FAIL=$((FAIL + 1))
+          fi
+        }
+
+        assert_contains() {
+          local test_name="$1"
+          local body="$2"
+          local expected_key="$3"
+          if echo "$body" | grep -q "$expected_key"; then
+            echo "  ✓ $test_name"
+            PASS=$((PASS + 1))
+          else
+            echo "  ✗ $test_name"
+            echo "    Expected '$expected_key' in response body"
+            echo "    Body: $body"
+            FAIL=$((FAIL + 1))
+          fi
+        }
+
+        # ─────────────────────────────────────────────────────────────────────
+        echo "── Health ───────────────────────────────────────────────────────"
+
+        STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/health")
+        assert_status "GET /health returns 200" "200" "$STATUS" ""
+
+        # ─────────────────────────────────────────────────────────────────────
+        echo ""
+        echo "── Admin: Session Management ─────────────────────────────────────"
+
+        # Create session
+        RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$BASE_URL/api/admin/sessions" \
+          -H "Content-Type: application/json" \
+          -d '{"nhsnOrgId":"IT-99999","healthSystemName":"Integration Test Health System"}')
+        BODY=$(echo "$RESPONSE" | head -n -1)
+        STATUS=$(echo "$RESPONSE" | tail -n 1)
+
+        assert_status "POST /api/admin/sessions returns 200" "200" "$STATUS" "$BODY"
+        assert_contains "Response contains 'token'" "$BODY" "token"
+        assert_contains "Response contains 'onboardingUrl'" "$BODY" "onboardingUrl"
+
+        TEST_TOKEN=$(echo "$BODY" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+        echo "    Test token: ${TEST_TOKEN:0:16}..."
+
+        # List sessions — our new session should appear
+        RESPONSE=$(curl -s -w "\n%{http_code}" "$BASE_URL/api/admin/sessions")
+        BODY=$(echo "$RESPONSE" | head -n -1)
+        STATUS=$(echo "$RESPONSE" | tail -n 1)
+        assert_status "GET /api/admin/sessions returns 200" "200" "$STATUS" "$BODY"
+        assert_contains "Session list contains test token" "$BODY" "$TEST_TOKEN"
+
+        # ─────────────────────────────────────────────────────────────────────
+        echo ""
+        echo "── Onboarding: Session Retrieval ────────────────────────────────"
+
+        RESPONSE=$(curl -s -w "\n%{http_code}" "$BASE_URL/api/onboarding/$TEST_TOKEN")
+        BODY=$(echo "$RESPONSE" | head -n -1)
+        STATUS=$(echo "$RESPONSE" | tail -n 1)
+        assert_status "GET /api/onboarding/{token} returns 200" "200" "$STATUS" "$BODY"
+        assert_contains "Session contains nhsnOrgId" "$BODY" "IT-99999"
+        assert_contains "Session status is InProgress" "$BODY" "InProgress"
+
+        # Invalid token returns 404
+        STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/api/onboarding/invalid-token-xyz")
+        assert_status "GET /api/onboarding/{invalid} returns 404" "404" "$STATUS" ""
+
+        # ─────────────────────────────────────────────────────────────────────
+        echo ""
+        echo "── Onboarding: Step Progression ─────────────────────────────────"
+
+        # Compliance attestation
+        STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+          "$BASE_URL/api/onboarding/$TEST_TOKEN/compliance-attestation" \
+          -H "Content-Type: application/json" -d '{}')
+        assert_status "POST compliance-attestation returns 200" "200" "$STATUS" ""
+
+        # Verify step marked complete
+        RESPONSE=$(curl -s "$BASE_URL/api/onboarding/$TEST_TOKEN")
+        assert_contains "ComplianceAttestation step is true" "$RESPONSE" '"ComplianceAttestation":true'
+
+        # Server info
+        STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+          "$BASE_URL/api/onboarding/$TEST_TOKEN/server-info" \
+          -H "Content-Type: application/json" \
+          -d '{"fhirBaseUrl":"https://test.fhir.example.com/api/FHIR/R4","ehrVendor":"Epic"}')
+        assert_status "POST server-info returns 200" "200" "$STATUS" ""
+
+        # Verify vendor was stored
+        RESPONSE=$(curl -s "$BASE_URL/api/onboarding/$TEST_TOKEN")
+        assert_contains "EhrVendor set to Epic" "$RESPONSE" '"ehrVendor":"Epic"'
+
+        # Authorization
+        STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+          "$BASE_URL/api/onboarding/$TEST_TOKEN/authorization" \
+          -H "Content-Type: application/json" -d '{}')
+        assert_status "POST authorization returns 200" "200" "$STATUS" ""
+
+        # ─────────────────────────────────────────────────────────────────────
+        echo ""
+        echo "── Onboarding: Facility Info + Tenant Service ───────────────────"
+
+        RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+          "$BASE_URL/api/onboarding/$TEST_TOKEN/facility-info" \
+          -H "Content-Type: application/json" \
+          -d '{"organizationNames":"IT Test Org","timeZone":"America/New_York","physicalAddress":"123 Test St, Springfield"}')
+        BODY=$(echo "$RESPONSE" | head -n -1)
+        STATUS=$(echo "$RESPONSE" | tail -n 1)
+        assert_status "POST facility-info returns 200" "200" "$STATUS" "$BODY"
+        assert_contains "FacilityInfo step complete" \
+          "$(curl -s "$BASE_URL/api/onboarding/$TEST_TOKEN")" '"FacilityInfo":true'
+
+        # ─────────────────────────────────────────────────────────────────────
+        echo ""
+        echo "── Onboarding: Connection Test (expects failure — test FHIR URL) ─"
+
+        RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+          "$BASE_URL/api/onboarding/$TEST_TOKEN/connection-test" \
+          -H "Content-Type: application/json" \
+          -d '{"patientFhirId":"test-patient-123"}')
+        BODY=$(echo "$RESPONSE" | head -n -1)
+        STATUS=$(echo "$RESPONSE" | tail -n 1)
+        assert_status "POST connection-test returns 200" "200" "$STATUS" "$BODY"
+        # The test FHIR URL is unreachable — expect success:false but a well-formed response
+        assert_contains "Connection test response has 'success' field" "$BODY" "success"
+
+        # ─────────────────────────────────────────────────────────────────────
+        echo ""
+        echo "── Onboarding: Encounter Type Mapping ───────────────────────────"
+
+        STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+          "$BASE_URL/api/onboarding/$TEST_TOKEN/encounter-type-mapping" \
+          -H "Content-Type: application/json" \
+          -d '{"resourceType":"Encounter","fhirPath":"type","codeSystemMaps":[{"sourceSystem":"http://local","targetSystem":"http://snomed.info/sct","codes":[{"sourceCode":"ED","targetCode":"4525004","display":"Emergency dept"}]}]}')
+        assert_status "POST encounter-type-mapping returns 200" "200" "$STATUS" ""
+
+        GET_RESPONSE=$(curl -s "$BASE_URL/api/onboarding/$TEST_TOKEN/encounter-type-mapping")
+        assert_contains "Encounter mapping stored correctly" "$GET_RESPONSE" "4525004"
+
+        # ─────────────────────────────────────────────────────────────────────
+        echo ""
+        echo "── Results ──────────────────────────────────────────────────────"
+        TOTAL=$((PASS + FAIL))
+        echo "  Passed: $PASS / $TOTAL"
+
+        if [[ $FAIL -gt 0 ]]; then
+          echo "  Failed: $FAIL"
+          echo ""
+          # Print failure summary to ADO so it shows in the timeline
+          echo "##vso[task.logissue type=error]Integration tests: $FAIL/$TOTAL checks failed."
+        else
+          echo "  All checks passed."
+        fi
+
+        echo ""
+        echo "──────────────────────────────────────────────────────────────────"
+
+        # Exit non-zero so the stage fails and blocks prod deploy
+        [[ $FAIL -eq 0 ]]

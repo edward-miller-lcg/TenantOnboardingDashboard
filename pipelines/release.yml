@@ -6,7 +6,8 @@
 #    2. Build & Push        — build Docker images, push to ACR
 #    3. Deploy → Dev        — update Container Apps in dev (automatic)
 #    4. Smoke Test          — basic connectivity check against dev
-#    5. Deploy → Prod       — update Container Apps in prod (APPROVAL REQUIRED)
+#    5. Integration Tests   — full API lifecycle tests against live dev environment
+#    6. Deploy → Prod       — update Container Apps in prod (APPROVAL REQUIRED)
 #
 #  Triggered by: merge to main, or manually with custom imageTag.
 #
@@ -221,11 +222,32 @@ stages:
 
                 echo "Smoke tests passed."
 
-# ─── Stage 5: Deploy → Prod ───────────────────────────────────────────────────
-  - stage: DeployProd
-    displayName: '5 · Deploy → Prod  ⚠ APPROVAL REQUIRED'
+# ─── Stage 5: Integration Tests ───────────────────────────────────────────────
+# Exercises the full onboarding API lifecycle against the live dev environment.
+# A failure here blocks the prod deploy without requiring a manual gate.
+  - stage: IntegrationTests
+    displayName: '5 · Integration Tests (Dev)'
     dependsOn: SmokeTestDev
     condition: succeeded('SmokeTestDev')
+    variables:
+      - group: nhsnlink-onboarding-dev
+    jobs:
+      - job: RunIntegrationTests
+        displayName: API integration tests
+        timeoutInMinutes: 15
+        steps:
+          - template: templates/steps-integration-tests.yml
+            parameters:
+              azureServiceConnection: $(AZURE_SERVICE_CONNECTION_DEV)
+              resourceGroup: $(RESOURCE_GROUP)
+              appNamePrefix: $(APP_NAME_PREFIX)
+              tenantServiceUrl: $(TENANT_SERVICE_URL)
+
+# ─── Stage 6: Deploy → Prod ───────────────────────────────────────────────────
+  - stage: DeployProd
+    displayName: '6 · Deploy → Prod  ⚠ APPROVAL REQUIRED'
+    dependsOn: IntegrationTests
+    condition: succeeded('IntegrationTests')
     variables:
       - group: nhsnlink-onboarding-prod
     jobs:
