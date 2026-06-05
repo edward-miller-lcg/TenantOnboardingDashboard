@@ -173,6 +173,79 @@ stages:
                     env:
                       SQL_ADMIN_PASSWORD: $(SQL_ADMIN_PASSWORD)
 
+                  # ── Bootstrap images & retry ──────────────────────────────
+                  # On the very first deployment, ACR is created but no images
+                  # exist yet, so Container Apps fail to provision. This step:
+                  #   1. Detects if Container Apps are missing (chicken-and-egg)
+                  #   2. Pushes lightweight placeholder images into ACR
+                  #   3. Re-runs the Bicep deployment so Container Apps succeed
+                  # On subsequent runs the images already exist — this is a no-op.
+                  - task: AzureCLI@2
+                    displayName: 'Bootstrap ACR images & retry if Container Apps missing'
+                    condition: always()   # run even if the deployment above failed
+                    inputs:
+                      azureSubscription: $(AZURE_SERVICE_CONNECTION)
+                      scriptType: bash
+                      scriptLocation: inlineScript
+                      inlineScript: |
+                        set +e
+
+                        # Discover the ACR that was just created (avoid hardcoding the name)
+                        ACR_NAME=$(az acr list \
+                          --resource-group "$(RESOURCE_GROUP)" \
+                          --query "[0].name" -o tsv 2>/dev/null)
+
+                        if [ -z "$ACR_NAME" ]; then
+                          echo "ACR not found — deployment failed before ACR was created. Nothing to bootstrap."
+                          exit 0
+                        fi
+
+                        echo "Found ACR: $ACR_NAME"
+                        SERVER="${ACR_NAME}.azurecr.io"
+                        IMAGE_TAG="${PARAM_IMAGE_TAG:-dev}"
+                        PUSHED=false
+
+                        az acr login --name "$ACR_NAME"
+
+                        push_placeholder() {
+                          local repo="$1" source="$2"
+                          local tags
+                          tags=$(az acr repository show-tags \
+                            --name "$ACR_NAME" --repository "$repo" \
+                            -o tsv 2>/dev/null || true)
+                          if echo "$tags" | grep -q "^${IMAGE_TAG}$"; then
+                            echo "  $repo:$IMAGE_TAG already in ACR — skipping"
+                          else
+                            echo "  Pushing placeholder $repo:$IMAGE_TAG from $source"
+                            docker pull "$source"
+                            docker tag  "$source" "$SERVER/$repo:$IMAGE_TAG"
+                            docker push "$SERVER/$repo:$IMAGE_TAG"
+                            PUSHED=true
+                          fi
+                        }
+
+                        push_placeholder nhsnlink-onboarding-service mcr.microsoft.com/dotnet/aspnet:10.0
+                        push_placeholder nhsnlink-onboarding-web     nginx:alpine
+
+                        if [ "$PUSHED" = "true" ]; then
+                          echo ""
+                          echo "Placeholder images pushed — re-running Bicep so Container Apps can provision..."
+                          az deployment group create \
+                            --resource-group "$(RESOURCE_GROUP)" \
+                            --template-file  infrastructure/main.bicep \
+                            --parameters     infrastructure/${{ parameters.environment }}.bicepparam \
+                            --name           "nhsnlink-onboarding-bootstrap-$(Build.BuildId)"
+                          echo ""
+                          echo "Bootstrap deployment complete."
+                        else
+                          echo "All images already present — no bootstrap needed."
+                        fi
+
+                        exit 0
+                    env:
+                      SQL_ADMIN_PASSWORD: $(SQL_ADMIN_PASSWORD)
+                      PARAM_IMAGE_TAG: ${{ parameters.environment == 'prod' && 'latest' || 'dev' }}
+
                 - ${{ if eq(parameters.tool, 'terraform') }}:
                   - task: TerraformInstaller@1
                     displayName: 'Install Terraform'
