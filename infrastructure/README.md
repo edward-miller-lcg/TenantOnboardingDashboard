@@ -187,9 +187,43 @@ Bicep deployments are idempotent — unchanged resources are not recreated.
 
 ## Tearing Down
 
+**Do not delete the resource group itself.** Role assignments and pipeline permissions
+are scoped to the RG — deleting it removes them and requires re-granting access.
+Instead, delete only the resources inside it:
+
 ```bash
-az group delete --name rg-nhsnlink-onboarding-dev --yes --no-wait
+# Delete all resources inside the RG but keep the RG itself
+az resource list --resource-group rg-nhsnlink-onboarding-dev --query "[].id" -o tsv \
+  | xargs -I {} az resource delete --ids {} --no-wait
 ```
+
+Or delete specific resources by type (safer — gives you control over what goes):
+
+```bash
+# Container Apps
+az containerapp delete --name nhsnob-dev-api  --resource-group rg-nhsnlink-onboarding-dev --yes
+az containerapp delete --name nhsnob-dev-web  --resource-group rg-nhsnlink-onboarding-dev --yes
+
+# Container Apps Environment
+az containerappenv delete --name nhsnob-dev-cae --resource-group rg-nhsnlink-onboarding-dev --yes
+
+# SQL
+az sql db  delete --server nhsnob-dev-sql --name link-onboarding --resource-group rg-nhsnlink-onboarding-dev --yes
+az sql server delete --name nhsnob-dev-sql --resource-group rg-nhsnlink-onboarding-dev --yes
+
+# ACR
+az acr delete --name nhsnobdevacr --resource-group rg-nhsnlink-onboarding-dev --yes
+
+# Log Analytics
+az monitor log-analytics workspace delete --workspace-name nhsnob-dev-logs --resource-group rg-nhsnlink-onboarding-dev --yes --force
+
+# Managed Identity
+az identity delete --name nhsnob-dev-pull-identity --resource-group rg-nhsnlink-onboarding-dev
+```
+
+> If you truly need a full teardown (e.g. switching subscriptions), delete the RG,
+> then re-run the role assignment commands in the Prerequisites section before the
+> next pipeline run.
 
 ---
 
