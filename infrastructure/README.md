@@ -246,6 +246,21 @@ This is a one-time fix per subscription.
 
 ---
 
+### AuthorizationFailed — whatIf/action (after a teardown)
+
+```
+does not have authorization to perform action
+'Microsoft.Resources/deployments/whatIf/action' over scope
+'.../resourcegroups/rg-nhsnlink-onboarding-dev/...'
+```
+
+`az deployment group what-if` is group-scoped and requires the resource group to
+already exist. Running a teardown (`az group delete`) removes the RG, causing the
+Preview stage to fail on the next run. The pipeline now creates the RG before
+running `what-if`, so this is self-healing — just re-run the pipeline.
+
+---
+
 ### ProvisioningDisabled — SQL Server region restriction
 
 ```
