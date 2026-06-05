@@ -1,0 +1,17 @@
+# Wiki build artifacts (not part of main repo)
+.wiki-build/
+.wiki-repo/
+
+# .NET
+**/bin/
+**/obj/
+*.user
+
+# Angular
+Web/node_modules/
+Web/dist/
+Web/.angular/
+
+# Environment overrides
+**/appsettings.local.json
+**/.env.local
