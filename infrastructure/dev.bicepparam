@@ -29,11 +29,13 @@ param sqlTier = {
   autoPauseDelay: 60
 }
 
-// ─── Secrets (use --parameters sqlAdminPassword=... or CI secret) ─────────────
-// Do NOT commit a real password here. Pass via:
-//   az deployment group create ... --parameters sqlAdminPassword=$SQL_PASS
-param sqlAdminLogin = 'onboardingadmin'
-// param sqlAdminPassword = ''    // Pass securely — do not hardcode
+// ─── Secrets ─────────────────────────────────────────────────────────────────
+// readEnvironmentVariable() reads SQL_ADMIN_PASSWORD from the shell environment
+// at params-file processing time — never stored in source control.
+// Locally:  export SQL_ADMIN_PASSWORD="yourpass" before running az deploy
+// Pipeline: the env: block in the AzureCLI task injects it automatically
+param sqlAdminLogin    = 'onboardingadmin'
+param sqlAdminPassword = readEnvironmentVariable('SQL_ADMIN_PASSWORD')
 
 // ─── Image tags ───────────────────────────────────────────────────────────────
 param apiImageTag = 'dev'

@@ -69,13 +69,13 @@ stages:
                 azureSubscription: $(AZURE_SERVICE_CONNECTION)
                 scriptType: bash
                 scriptLocation: inlineScript
-                # Secret variables don't expand via $() in bash — map via env: and use $VAR syntax
+                # SQL_ADMIN_PASSWORD is read by readEnvironmentVariable() inside the .bicepparam file.
+                # Map it via env: so it's available to the bicep params processing.
                 inlineScript: |
                   az deployment group what-if \
                     --resource-group "$(RESOURCE_GROUP)" \
                     --template-file  infrastructure/main.bicep \
-                    --parameters     infrastructure/${{ parameters.environment }}.bicepparam \
-                    --parameters     sqlAdminPassword="$SQL_ADMIN_PASSWORD"
+                    --parameters     infrastructure/${{ parameters.environment }}.bicepparam
               env:
                 SQL_ADMIN_PASSWORD: $(SQL_ADMIN_PASSWORD)
 
@@ -146,7 +146,6 @@ stages:
                           --resource-group "$(RESOURCE_GROUP)" \
                           --template-file  infrastructure/main.bicep \
                           --parameters     infrastructure/${{ parameters.environment }}.bicepparam \
-                          --parameters     sqlAdminPassword="$SQL_ADMIN_PASSWORD" \
                           --name           "nhsnlink-onboarding-$(Build.BuildId)"
 
                         echo "Outputs:"

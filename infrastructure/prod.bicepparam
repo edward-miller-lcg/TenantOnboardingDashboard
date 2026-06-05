@@ -29,9 +29,11 @@ param sqlTier = {
   autoPauseDelay: -1   // -1 = disabled; always ready
 }
 
-// ─── Secrets (use --parameters sqlAdminPassword=... or CI secret) ─────────────
-param sqlAdminLogin = 'onboardingadmin'
-// param sqlAdminPassword = ''    // Pass securely — do not hardcode
+// ─── Secrets ─────────────────────────────────────────────────────────────────
+// readEnvironmentVariable() reads SQL_ADMIN_PASSWORD from the shell environment
+// at params-file processing time — never stored in source control.
+param sqlAdminLogin    = 'onboardingadmin'
+param sqlAdminPassword = readEnvironmentVariable('SQL_ADMIN_PASSWORD')
 
 // ─── Image tags ───────────────────────────────────────────────────────────────
 param apiImageTag = 'latest'
