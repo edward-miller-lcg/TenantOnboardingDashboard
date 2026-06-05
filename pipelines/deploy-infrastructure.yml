@@ -69,9 +69,15 @@ stages:
                 azureSubscription: $(AZURE_SERVICE_CONNECTION)
                 scriptType: bash
                 scriptLocation: inlineScript
+                # az deployment group what-if requires the RG to exist (group-scoped operation).
+                # Create it here so what-if works even after a teardown.
                 # SQL_ADMIN_PASSWORD is read by readEnvironmentVariable() inside the .bicepparam file.
-                # Map it via env: so it's available to the bicep params processing.
                 inlineScript: |
+                  az group create \
+                    --name     "$(RESOURCE_GROUP)" \
+                    --location "eastus2" \
+                    --tags     application=nhsnlink-onboarding environment=${{ parameters.environment }} || true
+
                   az deployment group what-if \
                     --resource-group "$(RESOURCE_GROUP)" \
                     --template-file  infrastructure/main.bicep \
