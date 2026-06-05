@@ -73,10 +73,16 @@ stages:
                 # Create it here so what-if works even after a teardown.
                 # SQL_ADMIN_PASSWORD is read by readEnvironmentVariable() inside the .bicepparam file.
                 inlineScript: |
-                  az group create \
-                    --name     "$(RESOURCE_GROUP)" \
-                    --location "eastus2" \
-                    --tags     application=nhsnlink-onboarding environment=${{ parameters.environment }} || true
+                  # Only create RG if it doesn't already exist — avoids InvalidResourceGroupLocation
+                  # when the RG was previously created in a different region.
+                  if ! az group exists --name "$(RESOURCE_GROUP)" | grep -q "true"; then
+                    az group create \
+                      --name     "$(RESOURCE_GROUP)" \
+                      --location "centralus" \
+                      --tags     application=nhsnlink-onboarding environment=${{ parameters.environment }}
+                  else
+                    echo "Resource group already exists — skipping creation."
+                  fi
 
                   az deployment group what-if \
                     --resource-group "$(RESOURCE_GROUP)" \
@@ -143,10 +149,14 @@ stages:
                       scriptLocation: inlineScript
                       inlineScript: |
                         set -euo pipefail
-                        az group create \
-                          --name     "$(RESOURCE_GROUP)" \
-                          --location "southcentralus" \
-                          --tags     application=nhsnlink-onboarding environment=${{ parameters.environment }} || true
+                        if ! az group exists --name "$(RESOURCE_GROUP)" | grep -q "true"; then
+                          az group create \
+                            --name     "$(RESOURCE_GROUP)" \
+                            --location "centralus" \
+                            --tags     application=nhsnlink-onboarding environment=${{ parameters.environment }}
+                        else
+                          echo "Resource group already exists — skipping creation."
+                        fi
 
                         az deployment group create \
                           --resource-group "$(RESOURCE_GROUP)" \
