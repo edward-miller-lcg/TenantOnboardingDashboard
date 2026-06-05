@@ -145,7 +145,7 @@ stages:
                         set -euo pipefail
                         az group create \
                           --name     "$(RESOURCE_GROUP)" \
-                          --location "eastus" \
+                          --location "southcentralus" \
                           --tags     application=nhsnlink-onboarding environment=${{ parameters.environment }} || true
 
                         az deployment group create \

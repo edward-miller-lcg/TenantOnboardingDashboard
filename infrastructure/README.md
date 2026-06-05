@@ -302,13 +302,15 @@ Provisioning is restricted in this region. Please choose a different region.
 ```
 
 Azure SQL is quota-restricted in `eastus` on Visual Studio subscriptions.
-**Use `eastus2` instead** — update `location` in the relevant `.bicepparam` file:
+**Use `southcentralus` instead** — update `location` in the relevant `.bicepparam` file:
 
 ```bicep
-param location = 'eastus2'
+param location = 'southcentralus'
 ```
 
-If `eastus2` also fails, try `southcentralus` or `westus2`. This is a subscription-tier
+If that also fails, try `centralus` or `westus2`. Also update the hardcoded
+`--location` in both `az group create` calls in `pipelines/deploy-infrastructure.yml`
+to match. This is a subscription-tier
 limitation, not a code issue. A support request can increase quota if needed.
 
 ---
