@@ -142,13 +142,15 @@ stages:
 
                 - ${{ if eq(parameters.tool, 'bicep') }}:
                   - task: AzureCLI@2
-                    displayName: 'az deployment group create'
+                    displayName: 'Deploy infrastructure (Bicep)'
                     inputs:
                       azureSubscription: $(AZURE_SERVICE_CONNECTION)
                       scriptType: bash
                       scriptLocation: inlineScript
                       inlineScript: |
                         set -euo pipefail
+
+                        # ── Resource group ──────────────────────────────────
                         if ! az group exists --name "$(RESOURCE_GROUP)" | grep -q "true"; then
                           az group create \
                             --name     "$(RESOURCE_GROUP)" \
@@ -158,90 +160,79 @@ stages:
                           echo "Resource group already exists — skipping creation."
                         fi
 
+                        # ── Pass 1: full Bicep deployment ───────────────────
+                        # May fail on Container Apps if images don't exist yet (first run).
+                        # Captured with set +e so we can handle the bootstrap below.
+                        echo "Starting Bicep deployment (pass 1)..."
+                        set +e
                         az deployment group create \
                           --resource-group "$(RESOURCE_GROUP)" \
                           --template-file  infrastructure/main.bicep \
                           --parameters     infrastructure/${{ parameters.environment }}.bicepparam \
                           --name           "nhsnlink-onboarding-$(Build.BuildId)"
+                        DEPLOY_EXIT=$?
+                        set -e
 
-                        echo "Outputs:"
-                        az deployment group show \
-                          --resource-group "$(RESOURCE_GROUP)" \
-                          --name "nhsnlink-onboarding-$(Build.BuildId)" \
-                          --query properties.outputs \
-                          --output json
-                    env:
-                      SQL_ADMIN_PASSWORD: $(SQL_ADMIN_PASSWORD)
-
-                  # ── Bootstrap images & retry ──────────────────────────────
-                  # On the very first deployment, ACR is created but no images
-                  # exist yet, so Container Apps fail to provision. This step:
-                  #   1. Detects if Container Apps are missing (chicken-and-egg)
-                  #   2. Pushes lightweight placeholder images into ACR
-                  #   3. Re-runs the Bicep deployment so Container Apps succeed
-                  # On subsequent runs the images already exist — this is a no-op.
-                  - task: AzureCLI@2
-                    displayName: 'Bootstrap ACR images & retry if Container Apps missing'
-                    condition: always()   # run even if the deployment above failed
-                    inputs:
-                      azureSubscription: $(AZURE_SERVICE_CONNECTION)
-                      scriptType: bash
-                      scriptLocation: inlineScript
-                      inlineScript: |
-                        set +e
-
-                        # Discover the ACR that was just created (avoid hardcoding the name)
-                        ACR_NAME=$(az acr list \
-                          --resource-group "$(RESOURCE_GROUP)" \
-                          --query "[0].name" -o tsv 2>/dev/null)
-
-                        if [ -z "$ACR_NAME" ]; then
-                          echo "ACR not found — deployment failed before ACR was created. Nothing to bootstrap."
+                        if [ $DEPLOY_EXIT -eq 0 ]; then
+                          echo "Pass 1 succeeded — no bootstrap needed."
+                          az deployment group show \
+                            --resource-group "$(RESOURCE_GROUP)" \
+                            --name "nhsnlink-onboarding-$(Build.BuildId)" \
+                            --query properties.outputs --output json
                           exit 0
                         fi
 
-                        echo "Found ACR: $ACR_NAME"
-                        SERVER="${ACR_NAME}.azurecr.io"
-                        IMAGE_TAG="${PARAM_IMAGE_TAG:-dev}"
-                        PUSHED=false
+                        # ── Bootstrap: push placeholder images then retry ───
+                        # Pass 1 failed — likely because ACR was just created but
+                        # images don't exist yet. Push minimal placeholders and retry.
+                        echo ""
+                        echo "Pass 1 failed — checking for missing ACR images..."
 
+                        ACR_NAME=$(az acr list \
+                          --resource-group "$(RESOURCE_GROUP)" \
+                          --query "[0].name" -o tsv 2>/dev/null || true)
+
+                        if [ -z "$ACR_NAME" ]; then
+                          echo "ACR not found — deployment failed before ACR was created."
+                          exit 1
+                        fi
+
+                        IMAGE_TAG="${PARAM_IMAGE_TAG:-dev}"
+                        SERVER="${ACR_NAME}.azurecr.io"
                         az acr login --name "$ACR_NAME"
 
-                        push_placeholder() {
+                        push_if_missing() {
                           local repo="$1" source="$2"
-                          local tags
-                          tags=$(az acr repository show-tags \
-                            --name "$ACR_NAME" --repository "$repo" \
-                            -o tsv 2>/dev/null || true)
-                          if echo "$tags" | grep -q "^${IMAGE_TAG}$"; then
-                            echo "  $repo:$IMAGE_TAG already in ACR — skipping"
+                          if az acr repository show-tags --name "$ACR_NAME" \
+                               --repository "$repo" -o tsv 2>/dev/null \
+                             | grep -q "^${IMAGE_TAG}$"; then
+                            echo "  $repo:$IMAGE_TAG already present — skipping"
                           else
-                            echo "  Pushing placeholder $repo:$IMAGE_TAG from $source"
+                            echo "  Pushing placeholder → $repo:$IMAGE_TAG"
                             docker pull "$source"
                             docker tag  "$source" "$SERVER/$repo:$IMAGE_TAG"
                             docker push "$SERVER/$repo:$IMAGE_TAG"
-                            PUSHED=true
                           fi
                         }
 
-                        push_placeholder nhsnlink-onboarding-service mcr.microsoft.com/dotnet/aspnet:10.0
-                        push_placeholder nhsnlink-onboarding-web     nginx:alpine
+                        push_if_missing nhsnlink-onboarding-service mcr.microsoft.com/dotnet/aspnet:10.0
+                        push_if_missing nhsnlink-onboarding-web     nginx:alpine
 
-                        if [ "$PUSHED" = "true" ]; then
-                          echo ""
-                          echo "Placeholder images pushed — re-running Bicep so Container Apps can provision..."
-                          az deployment group create \
-                            --resource-group "$(RESOURCE_GROUP)" \
-                            --template-file  infrastructure/main.bicep \
-                            --parameters     infrastructure/${{ parameters.environment }}.bicepparam \
-                            --name           "nhsnlink-onboarding-bootstrap-$(Build.BuildId)"
-                          echo ""
-                          echo "Bootstrap deployment complete."
-                        else
-                          echo "All images already present — no bootstrap needed."
-                        fi
+                        # ── Pass 2: retry now that images exist ─────────────
+                        echo ""
+                        echo "Placeholder images ready — starting Bicep deployment (pass 2)..."
+                        az deployment group create \
+                          --resource-group "$(RESOURCE_GROUP)" \
+                          --template-file  infrastructure/main.bicep \
+                          --parameters     infrastructure/${{ parameters.environment }}.bicepparam \
+                          --name           "nhsnlink-onboarding-retry-$(Build.BuildId)"
 
-                        exit 0
+                        echo ""
+                        echo "Deployment complete."
+                        az deployment group show \
+                          --resource-group "$(RESOURCE_GROUP)" \
+                          --name "nhsnlink-onboarding-retry-$(Build.BuildId)" \
+                          --query properties.outputs --output json
                     env:
                       SQL_ADMIN_PASSWORD: $(SQL_ADMIN_PASSWORD)
                       ${{ if eq(parameters.environment, 'prod') }}:
