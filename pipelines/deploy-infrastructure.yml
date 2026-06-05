@@ -69,12 +69,15 @@ stages:
                 azureSubscription: $(AZURE_SERVICE_CONNECTION)
                 scriptType: bash
                 scriptLocation: inlineScript
+                # Secret variables don't expand via $() in bash — map via env: and use $VAR syntax
                 inlineScript: |
                   az deployment group what-if \
                     --resource-group "$(RESOURCE_GROUP)" \
                     --template-file  infrastructure/main.bicep \
                     --parameters     infrastructure/${{ parameters.environment }}.bicepparam \
-                    --parameters     sqlAdminPassword="$(SQL_ADMIN_PASSWORD)"
+                    --parameters     sqlAdminPassword="$SQL_ADMIN_PASSWORD"
+              env:
+                SQL_ADMIN_PASSWORD: $(SQL_ADMIN_PASSWORD)
 
           - ${{ if eq(parameters.tool, 'terraform') }}:
             - task: TerraformInstaller@1
@@ -143,7 +146,7 @@ stages:
                           --resource-group "$(RESOURCE_GROUP)" \
                           --template-file  infrastructure/main.bicep \
                           --parameters     infrastructure/${{ parameters.environment }}.bicepparam \
-                          --parameters     sqlAdminPassword="$(SQL_ADMIN_PASSWORD)" \
+                          --parameters     sqlAdminPassword="$SQL_ADMIN_PASSWORD" \
                           --name           "nhsnlink-onboarding-$(Build.BuildId)"
 
                         echo "Outputs:"
@@ -152,6 +155,8 @@ stages:
                           --name "nhsnlink-onboarding-$(Build.BuildId)" \
                           --query properties.outputs \
                           --output json
+                    env:
+                      SQL_ADMIN_PASSWORD: $(SQL_ADMIN_PASSWORD)
 
                 - ${{ if eq(parameters.tool, 'terraform') }}:
                   - task: TerraformInstaller@1
