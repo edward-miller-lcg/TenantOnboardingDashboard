@@ -47,7 +47,7 @@ parameters:
   - name: imageTag
     displayName: 'Image tag to deploy (leave blank for :latest)'
     type: string
-    default: ''
+    default: 'latest'
 
   - name: skipBuild
     displayName: 'Skip build & push (deploy a previously built tag)'
