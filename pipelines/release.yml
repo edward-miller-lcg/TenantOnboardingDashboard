@@ -45,7 +45,7 @@ pr: none
 
 parameters:
   - name: imageTag
-    displayName: 'Image tag to deploy (leave blank to use Build ID)'
+    displayName: 'Image tag to deploy (leave blank for :latest)'
     type: string
     default: ''
 
@@ -60,7 +60,7 @@ pool:
 variables:
   - group: nhsnlink-onboarding-common
   - name: resolvedImageTag
-    value: ${{ coalesce(parameters.imageTag, '$(Build.BuildId)') }}
+    value: ${{ coalesce(parameters.imageTag, 'latest') }}
 
 # ─── Stage 1: Build & Test ────────────────────────────────────────────────────
 stages:
