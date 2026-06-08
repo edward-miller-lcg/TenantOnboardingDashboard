@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 //  Dev environment parameters
-//  ~$5-8/month total (ACR Basic + near-zero SQL + $0 Container Apps)
-//  Scale-to-zero: containers pause when not in use.
+//  ~$10-15/month total (ACR Basic + SQL serverless + always-warm Container Apps)
+//  minReplicas=1: eliminates cold-start timeouts; SQL pauses after 4h idle.
 // ─────────────────────────────────────────────────────────────────────────────
 
 using './main.bicep'
@@ -11,22 +11,22 @@ param environment = 'dev'
 param location = 'centralus'
 
 // ─── Container App sizing ─────────────────────────────────────────────────────
-// Minimum consumption tier. Both containers scale to 0 when idle.
-// ~$0/month within Azure's free grant (180K vCPU-sec/month per subscription).
+// 1 replica always warm to avoid cold-start timeouts during dev.
+// ~$3-5/month above free grant (0.25 vCPU × 2 containers × 24/7).
 param containerAppTier = {
   cpu: '0.25'
   memory: '0.5Gi'
-  minReplicas: 0      // Scale to zero — no charge when idle
+  minReplicas: 1      // Always-warm — eliminates cold-start hangs
   maxReplicas: 3
 }
 
 // ─── SQL Database sizing ──────────────────────────────────────────────────────
-// Serverless GP_S_Gen5_1: max 1 vCore, autopause after 60 min idle.
-// Cost: ~$0 when paused + $0.115/GB/month storage.
+// Serverless GP_S_Gen5_1: max 1 vCore, autopause after 240 min idle.
+// Extended from 60 min to avoid mid-session resume delays (~30-60s wake-up).
 param sqlTier = {
   skuName: 'GP_S_Gen5_1'
   minCapacity: '0.5'
-  autoPauseDelay: 60
+  autoPauseDelay: 240
 }
 
 // ─── Secrets ─────────────────────────────────────────────────────────────────
@@ -42,8 +42,10 @@ param apiImageTag = 'dev'
 param webImageTag = 'dev'
 
 // ─── link-cloud service URLs ──────────────────────────────────────────────────
-// Replace with the actual URLs from your link-cloud Azure deployment.
-param tenantServiceUrl          = 'https://link-tenant.yourdomain.com'
-param dataAcquisitionServiceUrl = 'https://link-dataacq.yourdomain.com'
-param reportServiceUrl          = 'https://link-report.yourdomain.com'
-param normalizationServiceUrl   = 'https://link-normalization.yourdomain.com'
+// Read from environment variables — set in the ADO variable group
+// 'nhsnlink-onboarding-dev' and injected via the pipeline env: block.
+// Locally: export TENANT_SERVICE_URL="https://..." before running az deploy.
+param tenantServiceUrl          = readEnvironmentVariable('TENANT_SERVICE_URL')
+param dataAcquisitionServiceUrl = readEnvironmentVariable('DATA_ACQUISITION_URL')
+param reportServiceUrl          = readEnvironmentVariable('REPORT_SERVICE_URL')
+param normalizationServiceUrl   = readEnvironmentVariable('NORMALIZATION_SERVICE_URL')

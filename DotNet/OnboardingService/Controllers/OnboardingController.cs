@@ -67,11 +67,20 @@ public class OnboardingController : ControllerBase
             ScheduledReports = new { Daily = Array.Empty<string>(), Monthly = Array.Empty<string>(), Weekly = Array.Empty<string>() }
         };
 
-        var tenantResponse = await _tenantClient.CreateFacilityAsync(facilityModel, ct);
-        if (!tenantResponse.IsSuccessStatusCode && tenantResponse.StatusCode != System.Net.HttpStatusCode.Conflict)
+        try
         {
-            var error = await tenantResponse.Content.ReadAsStringAsync(ct);
-            _logger.LogWarning("Tenant service returned {Status}: {Error}", tenantResponse.StatusCode, error);
+            var tenantResponse = await _tenantClient.CreateFacilityAsync(facilityModel, ct);
+            if (!tenantResponse.IsSuccessStatusCode && tenantResponse.StatusCode != System.Net.HttpStatusCode.Conflict)
+            {
+                var error = await tenantResponse.Content.ReadAsStringAsync(ct);
+                _logger.LogWarning("Tenant service returned {Status}: {Error}", tenantResponse.StatusCode, error);
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            // Tenant service is best-effort — an unreachable or misconfigured upstream
+            // (e.g. placeholder URL in dev) must not block the local onboarding record.
+            _logger.LogWarning(ex, "Tenant service call failed for facility {FacilityId}; continuing.", facilityId);
         }
 
         await _onboarding.SetFacilityIdAsync(token, facilityId, ct);

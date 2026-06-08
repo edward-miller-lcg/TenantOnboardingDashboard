@@ -89,7 +89,11 @@ stages:
                     --template-file  infrastructure/main.bicep \
                     --parameters     infrastructure/${{ parameters.environment }}.bicepparam
               env:
-                SQL_ADMIN_PASSWORD: $(SQL_ADMIN_PASSWORD)
+                SQL_ADMIN_PASSWORD:        $(SQL_ADMIN_PASSWORD)
+                TENANT_SERVICE_URL:        $(TENANT_SERVICE_URL)
+                DATA_ACQUISITION_URL:      $(DATA_ACQUISITION_URL)
+                REPORT_SERVICE_URL:        $(REPORT_SERVICE_URL)
+                NORMALIZATION_SERVICE_URL: $(NORMALIZATION_SERVICE_URL)
 
           - ${{ if eq(parameters.tool, 'terraform') }}:
             - task: TerraformInstaller@1
@@ -234,7 +238,11 @@ stages:
                           --name "nhsnlink-onboarding-retry-$(Build.BuildId)" \
                           --query properties.outputs --output json
                     env:
-                      SQL_ADMIN_PASSWORD: $(SQL_ADMIN_PASSWORD)
+                      SQL_ADMIN_PASSWORD:        $(SQL_ADMIN_PASSWORD)
+                      TENANT_SERVICE_URL:        $(TENANT_SERVICE_URL)
+                      DATA_ACQUISITION_URL:      $(DATA_ACQUISITION_URL)
+                      REPORT_SERVICE_URL:        $(REPORT_SERVICE_URL)
+                      NORMALIZATION_SERVICE_URL: $(NORMALIZATION_SERVICE_URL)
                       ${{ if eq(parameters.environment, 'prod') }}:
                         PARAM_IMAGE_TAG: latest
                       ${{ else }}:
