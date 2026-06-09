@@ -18,6 +18,8 @@ public class OnboardingController : ControllerBase
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<OnboardingController> _logger;
 
+    private static readonly JsonSerializerOptions _jsonOpts = new(JsonSerializerDefaults.Web);
+
     public OnboardingController(
         IOnboardingService onboarding,
         TenantServiceClient tenantClient,
@@ -34,6 +36,10 @@ public class OnboardingController : ControllerBase
         _logger = logger;
     }
 
+    // -------------------------------------------------------------------------
+    // Session
+    // -------------------------------------------------------------------------
+
     [HttpGet]
     public async Task<IActionResult> GetSession(string token, CancellationToken ct)
     {
@@ -41,6 +47,10 @@ public class OnboardingController : ControllerBase
         if (session is null) return NotFound();
         return Ok(session);
     }
+
+    // -------------------------------------------------------------------------
+    // Onboarding steps
+    // -------------------------------------------------------------------------
 
     [HttpPost("compliance-attestation")]
     public async Task<IActionResult> CompleteAttestation(string token, CancellationToken ct)
@@ -78,8 +88,6 @@ public class OnboardingController : ControllerBase
         }
         catch (HttpRequestException ex)
         {
-            // Tenant service is best-effort — an unreachable or misconfigured upstream
-            // (e.g. placeholder URL in dev) must not block the local onboarding record.
             _logger.LogWarning(ex, "Tenant service call failed for facility {FacilityId}; continuing.", facilityId);
         }
 
@@ -126,14 +134,12 @@ public class OnboardingController : ControllerBase
         var session = await _onboarding.ValidateTokenAsync(token, ct);
         if (session is null) return NotFound();
 
-        // Retrieve the FHIR base URL saved during Server Info
         var sessionData = await _onboarding.GetSessionAsync(token, ct);
         var fhirBaseUrl = sessionData?.FormData.GetValueOrDefault("FhirBaseUrl");
 
         if (string.IsNullOrWhiteSpace(fhirBaseUrl))
             return BadRequest(new { error = "FHIR base URL not configured. Please complete the Server Info step first." });
 
-        // Test connectivity by fetching the FHIR CapabilityStatement (metadata)
         var metadataUrl = fhirBaseUrl.TrimEnd('/') + "/metadata";
         _logger.LogInformation("Testing FHIR connection for facility {FacilityId} at {MetadataUrl}",
             session.FacilityId ?? session.NhsnOrgId, metadataUrl);
@@ -149,12 +155,10 @@ public class OnboardingController : ControllerBase
             if (response.IsSuccessStatusCode)
             {
                 await _onboarding.CompleteStepAsync(token, "ConnectionTest", ct);
-                _logger.LogInformation("FHIR connection test succeeded: {StatusCode}", (int)response.StatusCode);
                 return Ok(new ConnectionTestResponse { Success = true });
             }
 
             var body = await response.Content.ReadAsStringAsync(ct);
-            _logger.LogWarning("FHIR server returned {StatusCode} for {Url}", (int)response.StatusCode, metadataUrl);
             return Ok(new ConnectionTestResponse
             {
                 Success = false,
@@ -164,17 +168,14 @@ public class OnboardingController : ControllerBase
         }
         catch (HttpRequestException ex)
         {
-            _logger.LogWarning(ex, "FHIR connection test failed for {Url}", metadataUrl);
             return Ok(new ConnectionTestResponse
             {
                 Success = false,
-                ErrorDetails = $"Unable to reach FHIR server at {metadataUrl}.\n\nError: {ex.Message}\n\n" +
-                               "Check that the URL is correct and accessible from the NHSNLink network."
+                ErrorDetails = $"Unable to reach FHIR server at {metadataUrl}.\n\nError: {ex.Message}"
             });
         }
         catch (TaskCanceledException)
         {
-            _logger.LogWarning("FHIR connection test timed out for {Url}", metadataUrl);
             return Ok(new ConnectionTestResponse
             {
                 Success = false,
@@ -193,7 +194,6 @@ public class OnboardingController : ControllerBase
 
         if (body.TryGetProperty("patientListIds", out var listIds))
             fields["PatientListIds"] = listIds.GetString() ?? string.Empty;
-
         if (body.TryGetProperty("sftpUrl", out var sftpUrl))
             fields["SftpUrl"] = sftpUrl.GetString() ?? string.Empty;
         if (body.TryGetProperty("sftpUsername", out var sftpUser))
@@ -206,13 +206,100 @@ public class OnboardingController : ControllerBase
         return Ok();
     }
 
-    [HttpPost("location-type-mapping")]
-    public async Task<IActionResult> CompleteLocationTypeMapping(string token, CancellationToken ct)
+    // -------------------------------------------------------------------------
+    // Location Type Mapping — guided HSLOC code map step (Option A)
+    // Creates two normalization operations for the facility:
+    //   1. CodeMap:      Location.identifier.value  →  HSLOC
+    //   2. CopyLocation: promotes HSLOC identifier  →  Location.type
+    // -------------------------------------------------------------------------
+
+    [HttpGet("location-type-mapping")]
+    public async Task<IActionResult> GetLocationTypeMapping(string token, CancellationToken ct)
     {
-        if (await _onboarding.ValidateTokenAsync(token, ct) is null) return NotFound();
+        var session = await _onboarding.ValidateTokenAsync(token, ct);
+        if (session is null) return NotFound();
+
+        var sessionData = await _onboarding.GetSessionAsync(token, ct);
+        var mapJson = sessionData?.FormData.GetValueOrDefault("LocationTypeMapping");
+        if (mapJson is null) return Ok(new LocationTypeMappingRequest());
+
+        return Ok(JsonSerializer.Deserialize<LocationTypeMappingRequest>(mapJson, _jsonOpts));
+    }
+
+    [HttpPost("location-type-mapping")]
+    public async Task<IActionResult> SaveLocationTypeMapping(string token, [FromBody] LocationTypeMappingRequest request, CancellationToken ct)
+    {
+        var session = await _onboarding.ValidateTokenAsync(token, ct);
+        if (session is null) return NotFound();
+        if (session.FacilityId is null)
+            return BadRequest(new { error = "FacilityId not set. Complete the Facility Info step first." });
+
+        // Persist form data so the user can return and see what they entered.
+        await _onboarding.SaveFormDataAsync(token, new Dictionary<string, string>
+        {
+            ["LocationTypeMapping"] = JsonSerializer.Serialize(request, _jsonOpts)
+        }, ct);
+
+        // Build CodeMap operation: Location.identifier.value → HSLOC
+        var codeMapPayload = new NormCreatePayload(
+            ResourceTypes: new List<string> { "Location" },
+            FacilityId: session.FacilityId,
+            Operation: new NormCodeMapDto
+            {
+                Name = "Map Location Identifier to HSLOC",
+                Description = "Translates Epic location identifier codes to CDC NHSN HSLOC codes.",
+                FhirPath = "Location.identifier.value",
+                CodeSystemMaps = new List<NormCodeSystemMapDto>
+                {
+                    new NormCodeSystemMapDto
+                    {
+                        SourceSystem = request.SourceSystem,
+                        TargetSystem = "https://www.cdc.gov/nhsn/cdaportal/terminology/codesystem/hsloc.html",
+                        CodeMaps = request.Codes.ToDictionary(
+                            c => c.SourceCode,
+                            c => new NormCodeEntryDto { Code = c.TargetCode, Display = c.Display })
+                    }
+                }
+            });
+
+        var codeMapResponse = await _normClient.CreateOperationAsync(codeMapPayload, ct);
+        if (!codeMapResponse.IsSuccessStatusCode)
+        {
+            var err = await codeMapResponse.Content.ReadAsStringAsync(ct);
+            _logger.LogWarning("Failed to create HSLOC CodeMap for {FacilityId}: {Error}", session.FacilityId, err);
+            return StatusCode((int)codeMapResponse.StatusCode,
+                new { error = "Failed to create HSLOC code map operation.", detail = err });
+        }
+
+        // Build CopyLocation operation (must run after the HSLOC code map, sequence is auto-managed)
+        var copyLocationPayload = new NormCreatePayload(
+            ResourceTypes: new List<string> { "Location" },
+            FacilityId: session.FacilityId,
+            Operation: new NormCopyLocationDto
+            {
+                Name = "Copy Location Identifier to Type",
+                Description = "Promotes mapped HSLOC identifiers into Location.type as a CodeableConcept."
+            });
+
+        var copyLocationResponse = await _normClient.CreateOperationAsync(copyLocationPayload, ct);
+        if (!copyLocationResponse.IsSuccessStatusCode)
+        {
+            var err = await copyLocationResponse.Content.ReadAsStringAsync(ct);
+            _logger.LogWarning("Failed to create CopyLocation for {FacilityId}: {Error}", session.FacilityId, err);
+            return StatusCode((int)copyLocationResponse.StatusCode,
+                new { error = "HSLOC code map was saved but the Copy Location step failed.", detail = err });
+        }
+
         await _onboarding.CompleteStepAsync(token, "LocationTypeMapping", ct);
         return Ok();
     }
+
+    // -------------------------------------------------------------------------
+    // Encounter Type Mapping — Epic-specific CodeMap + ConditionalTransform
+    // Creates two normalization operations for the facility:
+    //   1. CodeMap (seq 10):             Encounter.type.coding   → SNOMED CT
+    //   2. ConditionalTransform (seq 20): Encounter.status = "finished" when period.end Exists
+    // -------------------------------------------------------------------------
 
     [HttpGet("encounter-type-mapping")]
     public async Task<IActionResult> GetEncounterTypeMapping(string token, CancellationToken ct)
@@ -220,12 +307,11 @@ public class OnboardingController : ControllerBase
         var session = await _onboarding.ValidateTokenAsync(token, ct);
         if (session is null) return NotFound();
 
-        var value = await _onboarding.GetSessionAsync(token, ct);
-        var mapJson = value?.FormData.GetValueOrDefault("EncounterTypeMapping");
+        var sessionData = await _onboarding.GetSessionAsync(token, ct);
+        var mapJson = sessionData?.FormData.GetValueOrDefault("EncounterTypeMapping");
         if (mapJson is null) return Ok(new EncounterTypeMappingRequest());
 
-        var map = JsonSerializer.Deserialize<EncounterTypeMappingRequest>(mapJson);
-        return Ok(map);
+        return Ok(JsonSerializer.Deserialize<EncounterTypeMappingRequest>(mapJson, _jsonOpts));
     }
 
     [HttpPost("encounter-type-mapping")]
@@ -233,11 +319,73 @@ public class OnboardingController : ControllerBase
     {
         var session = await _onboarding.ValidateTokenAsync(token, ct);
         if (session is null) return NotFound();
+        if (session.FacilityId is null)
+            return BadRequest(new { error = "FacilityId not set. Complete the Facility Info step first." });
 
         await _onboarding.SaveFormDataAsync(token, new Dictionary<string, string>
         {
-            ["EncounterTypeMapping"] = JsonSerializer.Serialize(request)
+            ["EncounterTypeMapping"] = JsonSerializer.Serialize(request, _jsonOpts)
         }, ct);
+
+        // Operation 1: CodeMap — Encounter.type.coding → SNOMED CT (sequence 10)
+        var codeMapPayload = new NormCreatePayload(
+            ResourceTypes: new List<string> { "Encounter" },
+            FacilityId: session.FacilityId,
+            Operation: new NormCodeMapDto
+            {
+                Name = "Map Encounter Type to SNOMED",
+                Description = "Translates Epic encounter type codes to SNOMED CT for NHSN reporting.",
+                FhirPath = "Encounter.type.coding",
+                CodeSystemMaps = request.CodeSystemMaps.Select(csm => new NormCodeSystemMapDto
+                {
+                    SourceSystem = csm.SourceSystem,
+                    TargetSystem = csm.TargetSystem,
+                    CodeMaps = csm.Codes.ToDictionary(
+                        c => c.SourceCode,
+                        c => new NormCodeEntryDto { Code = c.TargetCode, Display = c.Display })
+                }).ToList()
+            });
+
+        var codeMapResponse = await _normClient.CreateOperationAsync(codeMapPayload, ct);
+        if (!codeMapResponse.IsSuccessStatusCode)
+        {
+            var err = await codeMapResponse.Content.ReadAsStringAsync(ct);
+            _logger.LogWarning("Failed to create Encounter CodeMap for {FacilityId}: {Error}", session.FacilityId, err);
+            return StatusCode((int)codeMapResponse.StatusCode,
+                new { error = "Failed to create Encounter type code map operation.", detail = err });
+        }
+
+        // Operation 2: ConditionalTransform — set Encounter.status = "finished" when period.end Exists (sequence 20)
+        var conditionalPayload = new NormCreatePayload(
+            ResourceTypes: new List<string> { "Encounter" },
+            FacilityId: session.FacilityId,
+            Operation: new NormConditionalTransformDto
+            {
+                Name = "Set Encounter Status to Finished",
+                Description = "Sets Encounter.status to 'finished' when a period end date is present.",
+                TargetFhirPath = "Encounter.status",
+                TargetValue = "finished",
+                Conditions = new List<NormConditionDto>
+                {
+                    new NormConditionDto
+                    {
+                        FhirPathSource = "Encounter.period.end",
+                        Operator = "Exists",
+                        Value = null
+                    }
+                }
+            });
+
+        var conditionalResponse = await _normClient.CreateOperationAsync(conditionalPayload, ct);
+        if (!conditionalResponse.IsSuccessStatusCode)
+        {
+            var err = await conditionalResponse.Content.ReadAsStringAsync(ct);
+            _logger.LogWarning("Failed to create Encounter ConditionalTransform for {FacilityId}: {Error}", session.FacilityId, err);
+            // Code map already saved — log and continue rather than blocking the step.
+            // The user can add the conditional transform manually from the Normalizations page.
+            _logger.LogWarning("Encounter type code map was saved but ConditionalTransform could not be created. Manual action may be needed.");
+        }
+
         await _onboarding.CompleteStepAsync(token, "EncounterTypeMapping", ct);
         return Ok();
     }
@@ -258,6 +406,10 @@ public class OnboardingController : ControllerBase
         return Ok();
     }
 
+    // -------------------------------------------------------------------------
+    // Reports
+    // -------------------------------------------------------------------------
+
     [HttpGet("reports")]
     public async Task<IActionResult> GetReports(string token, CancellationToken ct)
     {
@@ -266,8 +418,7 @@ public class OnboardingController : ControllerBase
         if (session.FacilityId is null) return BadRequest();
 
         var response = await _reportClient.GetReportsAsync(session.FacilityId, ct);
-        var content = await response.Content.ReadAsStringAsync(ct);
-        return Content(content, "application/json");
+        return Content(await response.Content.ReadAsStringAsync(ct), "application/json");
     }
 
     [HttpPost("reports")]
@@ -281,12 +432,10 @@ public class OnboardingController : ControllerBase
         var endDate = body.TryGetProperty("endDate", out var ed) ? ed.GetDateTime() : DateTime.UtcNow;
 
         var response = await _reportClient.GenerateReportAsync(session.FacilityId, startDate, endDate, ct);
-        var content = await response.Content.ReadAsStringAsync(ct);
-
         if (response.IsSuccessStatusCode)
             await _onboarding.CompleteStepAsync(token, "TestReport", ct);
 
-        return Content(content, "application/json");
+        return Content(await response.Content.ReadAsStringAsync(ct), "application/json");
     }
 
     [HttpGet("reports/{reportId}")]
@@ -297,9 +446,12 @@ public class OnboardingController : ControllerBase
         if (session.FacilityId is null) return BadRequest();
 
         var response = await _reportClient.GetReportAsync(session.FacilityId, reportId, ct);
-        var content = await response.Content.ReadAsStringAsync(ct);
-        return Content(content, "application/json");
+        return Content(await response.Content.ReadAsStringAsync(ct), "application/json");
     }
+
+    // -------------------------------------------------------------------------
+    // Normalizations — CRUD proxy to normalization service operations API
+    // -------------------------------------------------------------------------
 
     [HttpGet("normalizations")]
     public async Task<IActionResult> GetNormalizations(string token, CancellationToken ct)
@@ -308,9 +460,38 @@ public class OnboardingController : ControllerBase
         if (session is null) return NotFound();
         if (session.FacilityId is null) return BadRequest();
 
-        var response = await _normClient.GetNormalizationsAsync(session.FacilityId, ct);
-        var content = await response.Content.ReadAsStringAsync(ct);
-        return Content(content, "application/json");
+        var response = await _normClient.GetOperationsAsync(session.FacilityId, ct);
+        if (!response.IsSuccessStatusCode)
+            return StatusCode((int)response.StatusCode);
+
+        // Deserialize the paged response and project to the onboarding UI model.
+        var raw = await response.Content.ReadAsStringAsync(ct);
+        var paged = JsonSerializer.Deserialize<PagedOperationsResponse>(raw, _jsonOpts);
+        var items = (paged?.Records ?? new List<NormOperationRecord>())
+            .Select(r => new NormalizationOperationResponse
+            {
+                Id = r.Id.ToString(),
+                Name = r.Name,
+                Description = r.Description,
+                OperationType = r.OperationType,
+                ResourceTypes = r.OperationResourceTypes
+                    .Select(ort => ort.Resource?.Name ?? string.Empty)
+                    .Where(n => !string.IsNullOrEmpty(n))
+                    .ToList(),
+                IsDisabled = r.IsDisabled,
+                CanDelete = true
+            })
+            .ToList();
+
+        return Ok(items);
+    }
+
+    [HttpGet("normalizations/resource-types")]
+    public async Task<IActionResult> GetResourceTypes(string token, CancellationToken ct)
+    {
+        if (await _onboarding.ValidateTokenAsync(token, ct) is null) return NotFound();
+        var response = await _normClient.GetResourceTypesAsync(ct);
+        return Content(await response.Content.ReadAsStringAsync(ct), "application/json");
     }
 
     [HttpPost("normalizations/code-map")]
@@ -320,9 +501,13 @@ public class OnboardingController : ControllerBase
         if (session is null) return NotFound();
         if (session.FacilityId is null) return BadRequest();
 
-        var response = await _normClient.CreateNormalizationAsync(session.FacilityId, new { Type = "CodeMap", Config = request }, ct);
-        var content = await response.Content.ReadAsStringAsync(ct);
-        return StatusCode((int)response.StatusCode, content);
+        var payload = new NormCreatePayload(
+            ResourceTypes: new List<string> { request.ResourceType },
+            FacilityId: session.FacilityId,
+            Operation: BuildCodeMapDto(request));
+
+        var response = await _normClient.CreateOperationAsync(payload, ct);
+        return StatusCode((int)response.StatusCode, await response.Content.ReadAsStringAsync(ct));
     }
 
     [HttpPut("normalizations/code-map/{id}")]
@@ -332,7 +517,16 @@ public class OnboardingController : ControllerBase
         if (session is null) return NotFound();
         if (session.FacilityId is null) return BadRequest();
 
-        var response = await _normClient.UpdateNormalizationAsync(session.FacilityId, id, new { Type = "CodeMap", Config = request }, ct);
+        if (!Guid.TryParse(id, out var opId)) return BadRequest("Invalid operation id.");
+
+        var payload = new NormUpdatePayload(
+            Id: opId,
+            ResourceTypes: new List<string> { request.ResourceType },
+            FacilityId: session.FacilityId,
+            IsDisabled: false,
+            Operation: BuildCodeMapDto(request));
+
+        var response = await _normClient.UpdateOperationAsync(payload, ct);
         return StatusCode((int)response.StatusCode);
     }
 
@@ -343,9 +537,19 @@ public class OnboardingController : ControllerBase
         if (session is null) return NotFound();
         if (session.FacilityId is null) return BadRequest();
 
-        var response = await _normClient.CreateNormalizationAsync(session.FacilityId, new { Type = "CopyProperty", Config = request }, ct);
-        var content = await response.Content.ReadAsStringAsync(ct);
-        return StatusCode((int)response.StatusCode, content);
+        var payload = new NormCreatePayload(
+            ResourceTypes: new List<string> { request.ResourceType },
+            FacilityId: session.FacilityId,
+            Operation: new NormCopyPropertyDto
+            {
+                Name = request.Name,
+                Description = request.Description,
+                SourceFhirPath = request.SourceFhirPath,
+                TargetFhirPath = request.TargetFhirPath
+            });
+
+        var response = await _normClient.CreateOperationAsync(payload, ct);
+        return StatusCode((int)response.StatusCode, await response.Content.ReadAsStringAsync(ct));
     }
 
     [HttpPut("normalizations/copy-property/{id}")]
@@ -355,7 +559,22 @@ public class OnboardingController : ControllerBase
         if (session is null) return NotFound();
         if (session.FacilityId is null) return BadRequest();
 
-        var response = await _normClient.UpdateNormalizationAsync(session.FacilityId, id, new { Type = "CopyProperty", Config = request }, ct);
+        if (!Guid.TryParse(id, out var opId)) return BadRequest("Invalid operation id.");
+
+        var payload = new NormUpdatePayload(
+            Id: opId,
+            ResourceTypes: new List<string> { request.ResourceType },
+            FacilityId: session.FacilityId,
+            IsDisabled: !request.Enabled,
+            Operation: new NormCopyPropertyDto
+            {
+                Name = request.Name,
+                Description = request.Description,
+                SourceFhirPath = request.SourceFhirPath,
+                TargetFhirPath = request.TargetFhirPath
+            });
+
+        var response = await _normClient.UpdateOperationAsync(payload, ct);
         return StatusCode((int)response.StatusCode);
     }
 
@@ -366,9 +585,13 @@ public class OnboardingController : ControllerBase
         if (session is null) return NotFound();
         if (session.FacilityId is null) return BadRequest();
 
-        var response = await _normClient.CreateNormalizationAsync(session.FacilityId, new { Type = "ConditionalTransformation", Config = request }, ct);
-        var content = await response.Content.ReadAsStringAsync(ct);
-        return StatusCode((int)response.StatusCode, content);
+        var payload = new NormCreatePayload(
+            ResourceTypes: new List<string> { request.ResourceType },
+            FacilityId: session.FacilityId,
+            Operation: BuildConditionalDto(request));
+
+        var response = await _normClient.CreateOperationAsync(payload, ct);
+        return StatusCode((int)response.StatusCode, await response.Content.ReadAsStringAsync(ct));
     }
 
     [HttpPut("normalizations/conditional/{id}")]
@@ -378,7 +601,16 @@ public class OnboardingController : ControllerBase
         if (session is null) return NotFound();
         if (session.FacilityId is null) return BadRequest();
 
-        var response = await _normClient.UpdateNormalizationAsync(session.FacilityId, id, new { Type = "ConditionalTransformation", Config = request }, ct);
+        if (!Guid.TryParse(id, out var opId)) return BadRequest("Invalid operation id.");
+
+        var payload = new NormUpdatePayload(
+            Id: opId,
+            ResourceTypes: new List<string> { request.ResourceType },
+            FacilityId: session.FacilityId,
+            IsDisabled: !request.Enabled,
+            Operation: BuildConditionalDto(request));
+
+        var response = await _normClient.UpdateOperationAsync(payload, ct);
         return StatusCode((int)response.StatusCode);
     }
 
@@ -389,7 +621,9 @@ public class OnboardingController : ControllerBase
         if (session is null) return NotFound();
         if (session.FacilityId is null) return BadRequest();
 
-        var response = await _normClient.DeleteNormalizationAsync(session.FacilityId, id, ct);
+        if (!Guid.TryParse(id, out var opId)) return BadRequest("Invalid operation id.");
+
+        var response = await _normClient.DeleteOperationAsync(session.FacilityId, opId, ct);
         return StatusCode((int)response.StatusCode);
     }
 
@@ -400,4 +634,56 @@ public class OnboardingController : ControllerBase
         await _onboarding.CompleteOnboardingAsync(token, ct);
         return Ok();
     }
+
+    // -------------------------------------------------------------------------
+    // Private helpers
+    // -------------------------------------------------------------------------
+
+    private static NormCodeMapDto BuildCodeMapDto(CodeMapRequest request) => new NormCodeMapDto
+    {
+        Name = request.Name,
+        Description = request.Description,
+        FhirPath = request.FhirPath,
+        CodeSystemMaps = request.CodeSystemMaps.Select(csm => new NormCodeSystemMapDto
+        {
+            SourceSystem = csm.SourceSystem,
+            TargetSystem = csm.TargetSystem,
+            CodeMaps = csm.Codes.ToDictionary(
+                c => c.SourceCode,
+                c => new NormCodeEntryDto { Code = c.TargetCode, Display = c.Display })
+        }).ToList()
+    };
+
+    private static NormConditionalTransformDto BuildConditionalDto(ConditionalTransformationRequest request) =>
+        new NormConditionalTransformDto
+        {
+            Name = request.Name,
+            Description = request.Description,
+            TargetFhirPath = request.TargetFhirPath,
+            TargetValue = request.TargetValue,
+            Conditions = request.Conditions.Select(c => new NormConditionDto
+            {
+                FhirPathSource = c.FhirPath,
+                Operator = c.Operator,
+                Value = c.Value
+            }).ToList()
+        };
+
+    // -------------------------------------------------------------------------
+    // Local DTOs for deserializing the normalization service paged response
+    // -------------------------------------------------------------------------
+
+    private record PagedOperationsResponse(List<NormOperationRecord> Records);
+
+    private record NormOperationRecord(
+        Guid Id,
+        string Name,
+        string Description,
+        string OperationType,
+        bool IsDisabled,
+        List<NormResourceTypeRecord> OperationResourceTypes);
+
+    private record NormResourceTypeRecord(ResourceRecord? Resource);
+
+    private record ResourceRecord(string Name);
 }

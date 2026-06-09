@@ -24,6 +24,9 @@ builder.Services.AddDbContext<OnboardingDbContext>(options =>
 builder.Services.Configure<ServiceRegistry>(
     builder.Configuration.GetSection(ServiceRegistry.ConfigSectionName));
 
+// Required for bearer-token forwarding in NormalizationServiceClient
+builder.Services.AddHttpContextAccessor();
+
 // Repository & Services
 builder.Services.AddScoped<IOnboardingRepository, OnboardingRepository>();
 builder.Services.AddScoped<IOnboardingService, LantanaGroup.Link.OnboardingService.Application.Services.OnboardingService>();

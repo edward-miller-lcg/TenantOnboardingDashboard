@@ -5,6 +5,16 @@ import { SessionService } from '../../services/session.service';
 import { NormalizationItem } from '../../interfaces/onboarding.interfaces';
 import { OnboardingBreadcrumbComponent } from '../../core/onboarding-breadcrumb/onboarding-breadcrumb.component';
 
+const TYPE_LABELS: Record<string, string> = {
+  CodeMap: 'Code Map',
+  CopyProperty: 'Copy Property',
+  ConditionalTransform: 'Conditional Transform',
+  CopyLocation: 'Copy Location',
+  RemoveExtensions: 'Remove Extensions'
+};
+
+const EDITABLE_TYPES = new Set(['CodeMap', 'CopyProperty', 'ConditionalTransform']);
+
 @Component({
   selector: 'app-normalizations',
   standalone: true,
@@ -39,17 +49,22 @@ export class NormalizationsComponent implements OnInit {
     });
   }
 
+  isEditable(item: NormalizationItem): boolean {
+    return EDITABLE_TYPES.has(item.operationType);
+  }
+
   edit(item: NormalizationItem): void {
-    const typeMap: Record<string, string> = {
+    const routeMap: Record<string, string> = {
       CodeMap: 'code-map',
       CopyProperty: 'copy-property',
-      ConditionalTransformation: 'conditional'
+      ConditionalTransform: 'conditional'
     };
-    this.router.navigate(['/onboarding', this.token, 'normalizations', typeMap[item.type], item.id]);
+    const route = routeMap[item.operationType];
+    if (route) this.router.navigate(['/onboarding', this.token, 'normalizations', route, item.id]);
   }
 
   delete(item: NormalizationItem): void {
-    if (!confirm(`Delete normalization "${item.name}"?`)) return;
+    if (!confirm(`Delete "${item.name}"? This cannot be undone.`)) return;
     this.onboardingService.deleteNormalization(this.token, item.id).subscribe({ next: () => this.load() });
   }
 
@@ -59,7 +74,10 @@ export class NormalizationsComponent implements OnInit {
   }
 
   typeLabel(type: string): string {
-    const map: Record<string, string> = { CodeMap: 'Code Map', CopyProperty: 'Copy Property', ConditionalTransformation: 'Conditional Transformation' };
-    return map[type] ?? type;
+    return TYPE_LABELS[type] ?? type;
+  }
+
+  resourceTypeBadges(item: NormalizationItem): string {
+    return item.resourceTypes.join(', ') || '—';
   }
 }

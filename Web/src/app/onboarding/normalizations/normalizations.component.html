@@ -5,46 +5,74 @@
   </div>
 
   <h1 class="page-title">Normalizations</h1>
-  <p>Review and manage data normalizations applied to your FHIR data before report generation. Use the sort arrows to change the order normalizations are applied. HSLOC Code Map and Encounter.type cannot be deleted.</p>
+  <p>
+    Data normalizations transform your FHIR resources before report generation.
+    They run in sequence — each operation receives the output of the previous one.
+    Operations created during the Location and Encounter mapping steps are included here.
+  </p>
 
   @if (loading) {
     <p>Loading normalizations...</p>
   } @else {
     <div class="norm-list">
       @for (item of normalizations; track item.id) {
-        <div class="norm-item">
+        <div class="norm-item" [class.norm-item--disabled]="item.isDisabled">
           <div class="norm-info">
-            <div class="norm-name">{{ item.name }}</div>
-            <div class="norm-type">{{ typeLabel(item.type) }}</div>
+            <div class="norm-name">
+              {{ item.name }}
+              @if (item.isDisabled) {
+                <span class="norm-badge norm-badge--disabled">Disabled</span>
+              }
+            </div>
+            <div class="norm-meta">
+              <span class="norm-badge">{{ typeLabel(item.operationType) }}</span>
+              @for (rt of item.resourceTypes; track rt) {
+                <span class="norm-badge norm-badge--resource">{{ rt }}</span>
+              }
+            </div>
+            @if (item.description) {
+              <div class="norm-description">{{ item.description }}</div>
+            }
           </div>
           <div class="norm-actions">
-            <button class="nhsn-btn" (click)="edit(item)">Edit</button>
+            @if (isEditable(item)) {
+              <button class="nhsn-btn" (click)="edit(item)">Edit</button>
+            }
             @if (item.canDelete) {
-              <button class="nhsn-btn" (click)="delete(item)">Delete</button>
+              <button class="nhsn-btn nhsn-btn-danger" (click)="delete(item)">Delete</button>
             }
           </div>
         </div>
       }
       @if (normalizations.length === 0) {
-        <p style="color:#5b616b; margin: 12px 0;">No normalizations configured yet.</p>
+        <p class="norm-empty">No normalizations configured yet. Complete the Location and Encounter mapping steps, or add one below.</p>
       }
     </div>
 
     <div class="add-menu-container">
       <button class="nhsn-btn" (click)="addMenuOpen = !addMenuOpen">
-        Add new normalization &#9660;
+        Add normalization &#9660;
       </button>
       @if (addMenuOpen) {
         <div class="add-dropdown">
-          <button (click)="addNew('code-map')">Code Map</button>
-          <button (click)="addNew('copy-property')">Copy Property</button>
-          <button (click)="addNew('conditional')">Conditional Transformation</button>
+          <button (click)="addNew('code-map')">
+            <strong>Code Map</strong>
+            <span>Translate codes from one system to another</span>
+          </button>
+          <button (click)="addNew('copy-property')">
+            <strong>Copy Property</strong>
+            <span>Copy a value from one FHIR path to another</span>
+          </button>
+          <button (click)="addNew('conditional')">
+            <strong>Conditional Transform</strong>
+            <span>Set a value only when specific conditions are met</span>
+          </button>
         </div>
       }
     </div>
   }
 
-  <div style="margin-top: 16px;">
+  <div style="margin-top: 24px;">
     <button class="nhsn-btn" [routerLink]="['/onboarding', token, 'test-reports']">Back</button>
   </div>
 </div>

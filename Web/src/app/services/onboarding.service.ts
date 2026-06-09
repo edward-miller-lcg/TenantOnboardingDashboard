@@ -9,7 +9,8 @@ import {
   TestReport,
   PrequalificationReport,
   NormalizationItem,
-  EncounterTypeMappingData
+  EncounterTypeMappingData,
+  LocationTypeMappingData
 } from '../interfaces/onboarding.interfaces';
 import { AppConfigService } from './app-config.service';
 
@@ -21,7 +22,8 @@ export class OnboardingService {
 
   constructor(private http: HttpClient, private config: AppConfigService) {}
 
-  // Admin
+  // ---- Admin ----------------------------------------------------------------
+
   createSession(request: CreateSessionRequest): Observable<CreateSessionResponse> {
     return this.http.post<CreateSessionResponse>(`${this.base}/admin/sessions`, request);
   }
@@ -30,7 +32,8 @@ export class OnboardingService {
     return this.http.get<SessionResponse[]>(`${this.base}/admin/sessions`);
   }
 
-  // Session
+  // ---- Session --------------------------------------------------------------
+
   getSession(token: string): Observable<SessionResponse> {
     return this.http.get<SessionResponse>(`${this.base}/onboarding/${token}`);
   }
@@ -68,9 +71,17 @@ export class OnboardingService {
     return this.http.post<void>(`${this.base}/onboarding/${token}/patients-of-interest`, data);
   }
 
-  completeLocationTypeMapping(token: string): Observable<void> {
-    return this.http.post<void>(`${this.base}/onboarding/${token}/location-type-mapping`, {});
+  // ---- Location Type Mapping (Option A — guided HSLOC code map) ------------
+
+  getLocationTypeMapping(token: string): Observable<LocationTypeMappingData> {
+    return this.http.get<LocationTypeMappingData>(`${this.base}/onboarding/${token}/location-type-mapping`);
   }
+
+  saveLocationTypeMapping(token: string, data: LocationTypeMappingData): Observable<void> {
+    return this.http.post<void>(`${this.base}/onboarding/${token}/location-type-mapping`, data);
+  }
+
+  // ---- Encounter Type Mapping -----------------------------------------------
 
   getEncounterTypeMapping(token: string): Observable<EncounterTypeMappingData> {
     return this.http.get<EncounterTypeMappingData>(`${this.base}/onboarding/${token}/encounter-type-mapping`);
@@ -79,6 +90,8 @@ export class OnboardingService {
   saveEncounterTypeMapping(token: string, data: EncounterTypeMappingData): Observable<void> {
     return this.http.post<void>(`${this.base}/onboarding/${token}/encounter-type-mapping`, data);
   }
+
+  // ---- POI / report steps ---------------------------------------------------
 
   startPoiCompiling(token: string): Observable<void> {
     return this.http.post<void>(`${this.base}/onboarding/${token}/poi-compiling`, {});
@@ -100,8 +113,14 @@ export class OnboardingService {
     return this.http.get<PrequalificationReport>(`${this.base}/onboarding/${token}/reports/${reportId}`);
   }
 
+  // ---- Normalizations -------------------------------------------------------
+
   getNormalizations(token: string): Observable<NormalizationItem[]> {
     return this.http.get<NormalizationItem[]>(`${this.base}/onboarding/${token}/normalizations`);
+  }
+
+  getResourceTypes(token: string): Observable<{ name: string }[]> {
+    return this.http.get<{ name: string }[]>(`${this.base}/onboarding/${token}/normalizations/resource-types`);
   }
 
   createCodeMap(token: string, data: object): Observable<any> {

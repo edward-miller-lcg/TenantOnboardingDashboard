@@ -90,10 +90,14 @@ export interface CategoryIssue {
   location: string;
 }
 
+// Returned from GET /normalizations — projected from OperationModel
 export interface NormalizationItem {
   id: string;
   name: string;
-  type: 'CodeMap' | 'CopyProperty' | 'ConditionalTransformation';
+  description: string;
+  operationType: 'CodeMap' | 'CopyProperty' | 'ConditionalTransform' | 'CopyLocation' | 'RemoveExtensions';
+  resourceTypes: string[];
+  isDisabled: boolean;
   canDelete: boolean;
 }
 
@@ -113,4 +117,9 @@ export interface EncounterTypeMappingData {
   resourceType: string;
   fhirPath: string;
   codeSystemMaps: CodeSystemMap[];
+}
+
+export interface LocationTypeMappingData {
+  sourceSystem: string;
+  codes: CodeEntry[];
 }

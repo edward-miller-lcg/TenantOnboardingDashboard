@@ -2,75 +2,114 @@
   <app-onboarding-breadcrumb [token]="token" currentStep="EncounterTypeMapping" />
   <div class="contact-support"><a href="https://servicenow.example.com" target="_blank">Contact support</a></div>
 
-  <h1 class="page-title">Encounter.type Mapping</h1>
-  <p>Map your local encounter type codes to standard SNOMED codes so NHSNLink can correctly classify patient encounters.</p>
+  <h1 class="page-title">Encounter Type Mapping</h1>
+  <p>
+    Map your EHR's encounter type codes to standard
+    <strong>SNOMED CT</strong> values so NHSNLink can classify patient encounters correctly.
+  </p>
+  <p>
+    Two normalization operations will be created:
+    a <strong>Code Map</strong> translating <code>Encounter.type.coding</code> to SNOMED,
+    and a <strong>Conditional Transform</strong> that automatically sets
+    <code>Encounter.status</code> to <em>finished</em> when a period end date is present.
+  </p>
 
   <form [formGroup]="form">
-    <div class="nhsn-form-group fixed-fields">
-      <div class="field-pair">
-        <div>
-          <label>Resource Type</label>
-          <input type="text" value="Encounter" disabled />
-        </div>
-        <div>
-          <label>FHIR Path</label>
-          <input type="text" value="type" disabled />
-        </div>
-      </div>
-    </div>
 
     @for (map of codeSystemMaps.controls; track $index; let mi = $index) {
       <div class="code-system-map-box">
         <div class="csm-header">
-          <div class="nhsn-form-group" style="margin:0">
-            <label>Source System <span class="tooltip-icon" title="Local code system that will be mapped">?</span></label>
-            <input type="text" [formControl]="$any(map).get('sourceSystem')" placeholder="e.g. http://local-codes.org" />
+          <div class="nhsn-form-group" style="flex:1; margin:0">
+            <label>
+              Source System URI <span class="required-star">*</span>
+              <span class="tooltip-icon" title="The code system URI your EHR uses for Encounter.type — e.g. http://epic.com/encounter-type">?</span>
+            </label>
+            <input type="text" [formControl]="$any(map).get('sourceSystem')"
+                   placeholder="e.g. http://open.epic.com/FHIR/StructureDefinition/encounter-type"
+                   class="nhsn-input" />
+            @if ($any(map).get('sourceSystem')?.invalid && $any(map).get('sourceSystem')?.touched) {
+              <div class="nhsn-error-msg">Source system URI is required.</div>
+            }
           </div>
-          <div class="nhsn-form-group" style="margin:0">
+          <div class="nhsn-form-group" style="flex:1; margin:0">
             <label>Target System</label>
-            <input type="text" [formControl]="$any(map).get('targetSystem')" [attr.disabled]="true" />
+            <input type="text" [formControl]="$any(map).get('targetSystem')" [attr.disabled]="true" class="nhsn-input nhsn-input--readonly" />
           </div>
           @if (codeSystemMaps.length > 1) {
-            <button type="button" class="nhsn-btn" (click)="removeMap(mi)" title="Delete map">&#128465;</button>
+            <button type="button" class="nhsn-btn" (click)="removeMap(mi)" title="Remove this code system map">Remove</button>
           }
         </div>
 
-        <table class="nhsn-table" style="margin-bottom:8px">
-          <thead>
-            <tr><th>Source Code</th><th>Target Code</th><th>Display</th><th></th></tr>
-          </thead>
-          <tbody>
-            @for (code of codesOf(mi).controls; track $index; let ci = $index) {
+        <div class="paste-actions">
+          <button type="button" class="nhsn-btn" (click)="pasteFromClipboard(mi)">
+            Paste from Excel / CSV
+          </button>
+          <span class="hint-text">Columns: Epic Code, SNOMED Code, Display Text (optional)</span>
+        </div>
+        @if (pasteError) {
+          <div class="nhsn-error-msg">{{ pasteError }}</div>
+        }
+
+        <div (paste)="onPasteTsv($event, mi)" tabindex="0" style="outline:none">
+          <table class="nhsn-table" style="margin-top: 8px">
+            <thead>
               <tr>
-                <td><input type="text" [formControl]="$any(code).get('sourceCode')" style="width:100%;border:1px solid #d6d7d9;padding:4px" /></td>
-                <td>
-                  <select [formControl]="$any(code).get('targetCode')"
-                          (change)="onTargetCodeChange(mi, ci, $any($event.target).value)"
-                          style="width:100%;border:1px solid #d6d7d9;padding:4px">
-                    <option value=""></option>
-                    @for (sc of snomedCodes; track sc.code) {
-                      <option [value]="sc.code">{{ sc.code }}</option>
-                    }
-                  </select>
-                </td>
-                <td><input type="text" [formControl]="$any(code).get('display')" readonly style="width:100%;border:1px solid #d6d7d9;padding:4px;background:#f5f5f5" /></td>
-                <td><a href="javascript:void(0)" (click)="removeCode(mi, ci)" class="delete-link">Delete</a></td>
+                <th>Epic Encounter Code</th>
+                <th>SNOMED CT Code</th>
+                <th>Display</th>
+                <th></th>
               </tr>
-            }
-          </tbody>
-        </table>
-        <button type="button" class="nhsn-btn" (click)="addCode(mi)">Add code</button>
+            </thead>
+            <tbody>
+              @for (code of codesOf(mi).controls; track $index; let ci = $index) {
+                <tr>
+                  <td>
+                    <input type="text" [formControl]="$any(code).get('sourceCode')"
+                           class="nhsn-table-input" placeholder="e.g. AMB" />
+                  </td>
+                  <td>
+                    <select [formControl]="$any(code).get('targetCode')"
+                            (change)="onTargetCodeChange(mi, ci, $any($event.target).value)"
+                            class="nhsn-table-input">
+                      <option value=""></option>
+                      @for (sc of snomedCodes; track sc.code) {
+                        <option [value]="sc.code">{{ sc.code }} — {{ sc.display }}</option>
+                      }
+                    </select>
+                  </td>
+                  <td>
+                    <input type="text" [formControl]="$any(code).get('display')"
+                           readonly class="nhsn-table-input nhsn-input--readonly" />
+                  </td>
+                  <td>
+                    <button type="button" class="delete-btn" (click)="removeCode(mi, ci)" title="Remove row">&#215;</button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <button type="button" class="nhsn-btn" style="margin-top: 8px" (click)="addCode(mi)">Add row</button>
       </div>
     }
 
     <div style="margin-bottom: 16px;">
-      <button type="button" class="nhsn-btn" (click)="addMap()">Add code system map</button>
+      <button type="button" class="nhsn-btn" (click)="addMap()">Add another code system map</button>
     </div>
 
-    @if (error) { <div class="nhsn-error-msg">{{ error }}</div> }
+    <div class="info-box">
+      <strong>Also created automatically:</strong> a Conditional Transform will set
+      <code>Encounter.status = "finished"</code> whenever <code>Encounter.period.end</code> is present.
+      You can view or edit this from the Normalizations page after saving.
+    </div>
 
-    <button type="button" class="nhsn-btn nhsn-btn-primary" [disabled]="saving" (click)="save()">
-      {{ saving ? 'Saving...' : 'Save &amp; continue' }}
-    </button>
+    @if (error) { <div class="nhsn-error-msg" style="margin-top: 16px">{{ error }}</div> }
+
+    <div class="form-actions">
+      <button type="button" class="nhsn-btn nhsn-btn-primary" [disabled]="saving" (click)="save()">
+        {{ saving ? 'Saving...' : 'Save &amp; continue' }}
+      </button>
+    </div>
+
   </form>
 </div>

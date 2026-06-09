@@ -2,18 +2,96 @@
   <app-onboarding-breadcrumb [token]="token" currentStep="LocationTypeMapping" />
   <div class="contact-support"><a href="https://servicenow.example.com" target="_blank">Contact support</a></div>
 
-  <h1 class="page-title">Location.type Mapping</h1>
-  <p>NHSNLink uses HSLOC (Healthcare Service Location Code) codes to categorize patient locations. To ensure accurate reporting, you must map your facility's location codes to the NHSN-standard HSLOC codes within the NHSN application before proceeding.</p>
-  <p>Navigate to the NHSN application and complete the HSLOC code mapping under your facility settings. Once complete, check the box below to confirm.</p>
+  <h1 class="page-title">Location Code Mapping</h1>
+  <p>
+    NHSNLink requires your facility's location codes to be translated to
+    <strong>HSLOC (Healthcare Service Location Code)</strong> values before reporting.
+    Enter your EHR's location identifier system URI and map each local code to its HSLOC equivalent below.
+  </p>
+  <p>
+    Two normalization operations will be created automatically:
+    a <strong>Code Map</strong> that translates the codes, followed by a
+    <strong>Copy Location</strong> that promotes them into <code>Location.type</code>.
+  </p>
 
-  <div class="nhsn-checkbox-group" style="margin-top: 20px;">
-    <input type="checkbox" id="hslocDone" [(ngModel)]="confirmed" />
-    <label for="hslocDone">I have completed the HSLOC code map in the NHSN app.</label>
-  </div>
+  <form [formGroup]="form">
 
-  <div style="margin-top: 16px;">
-    <button class="nhsn-btn nhsn-btn-primary" [disabled]="!confirmed || saving" (click)="save()">
-      {{ saving ? 'Saving...' : 'Save &amp; continue' }}
-    </button>
-  </div>
+    <!-- Source system URI -->
+    <div class="nhsn-form-group">
+      <label for="sourceSystem">
+        Epic Location Identifier System URI <span class="required-star">*</span>
+        <span class="tooltip-icon" title="The code system URI your EHR uses for Location.identifier — e.g. urn:oid:1.2.3.4 or https://open.epic.com/FHIR/StructureDefinition/location-department-id">?</span>
+      </label>
+      <input id="sourceSystem" type="text" formControlName="sourceSystem"
+             placeholder="e.g. urn:oid:1.2.3.4.5" class="nhsn-input" />
+      @if (form.get('sourceSystem')?.invalid && form.get('sourceSystem')?.touched) {
+        <div class="nhsn-error-msg">Source system URI is required.</div>
+      }
+    </div>
+
+    <!-- Target system (read-only) -->
+    <div class="nhsn-form-group">
+      <label>Target System (HSLOC)</label>
+      <input type="text" [value]="hslocTargetSystem" disabled class="nhsn-input nhsn-input--readonly" />
+    </div>
+
+    <!-- Bulk paste -->
+    <div class="bulk-paste-section">
+      <h3 class="section-heading">Code Mappings</h3>
+      <p class="hint-text">
+        Map each Epic location code to its HSLOC code.
+        You can paste directly from Excel (columns: Epic Code, HSLOC Code, Display Text) or enter rows manually.
+      </p>
+
+      <div class="paste-actions">
+        <button type="button" class="nhsn-btn" (click)="pasteFromClipboard()">
+          Paste from Excel / CSV
+        </button>
+        <span class="hint-text">or use <kbd>Ctrl+V</kbd> in the table below</span>
+      </div>
+      @if (pasteError) {
+        <div class="nhsn-error-msg">{{ pasteError }}</div>
+      }
+
+      <div (paste)="onPasteTsv($event)" tabindex="0" style="outline:none">
+        <table class="nhsn-table" style="margin-top: 12px">
+          <thead>
+            <tr>
+              <th>Epic Location Code</th>
+              <th>HSLOC Code</th>
+              <th>Display Text</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody formArrayName="codes">
+            @for (code of codes.controls; track $index; let ci = $index) {
+              <tr [formGroupName]="ci">
+                <td><input type="text" formControlName="sourceCode" class="nhsn-table-input" placeholder="e.g. EDCS" /></td>
+                <td><input type="text" formControlName="targetCode" class="nhsn-table-input" placeholder="e.g. 1029-8" /></td>
+                <td><input type="text" formControlName="display" class="nhsn-table-input" placeholder="Emergency Department" /></td>
+                <td>
+                  @if (codes.length > 1) {
+                    <button type="button" class="delete-btn" (click)="removeCode(ci)" title="Remove row">&#215;</button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <button type="button" class="nhsn-btn" style="margin-top: 8px" (click)="addCode()">Add row</button>
+    </div>
+
+    @if (error) {
+      <div class="nhsn-error-msg" style="margin-top: 16px">{{ error }}</div>
+    }
+
+    <div class="form-actions">
+      <button type="button" class="nhsn-btn nhsn-btn-primary" [disabled]="saving" (click)="save()">
+        {{ saving ? 'Saving...' : 'Save &amp; continue' }}
+      </button>
+    </div>
+
+  </form>
 </div>
