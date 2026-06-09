@@ -10,6 +10,32 @@ This file documents items from the requirements spreadsheet that are either:
 
 ---
 
+## 🐛 Bugs Found in User Testing
+*Reported by Janet Alonzo, 2026-06-09*
+
+### BUG-1 — Compliance Attestation step is not clickable in the step list
+**Observed:** On the overview/step list page, the Compliance Attestation step does not function as an active hyperlink when it should be clickable after completion. All other completed steps are clickable — only Compliance Attestation is not.  
+**Expected (AC):** "All prior completed steps are blue hyperlinks that will take the user back to that step."  
+**Severity:** Medium — users cannot return to the attestation page to review it.  
+**Test:** `tests/overview.spec.ts` → `"completed Compliance Attestation step is a clickable link"`
+
+### BUG-2 — Authorization checkbox state not restored on back navigation
+**Observed:** If the user clicks back from a later step to the Authorization page, the "I have completed all EHR setup requirements" checkbox appears unchecked even though the step is marked complete. The system still allows forward progress from the overview, but the checkbox appears wrong and a user who tries to re-save the unchecked form may cause unexpected state.  
+**Expected:** Returning to a completed step should restore its visual state from session data.  
+**Severity:** Medium — confusing UX, potential for data corruption if re-saved unchecked.  
+**Likely cause:** `AuthorizationComponent.ngOnInit` doesn't check `session.stepProgress['Authorization']` to pre-tick the checkbox.  
+**Fix:** On init, set `this.confirmed = session.stepProgress?.['Authorization'] ?? false`.  
+**Test:** `tests/authorization.spec.ts` → `"checkbox is restored to checked when returning to a completed Authorization step"`
+
+### BUG-3 — POI Patient List IDs field accepts input without commas (no format validation)
+**Observed:** The Patient List IDs field in the Epic POI step accepted a single value with no comma separators and allowed the user to save and continue without an error.  
+**Expected (AC):** "IDs are comma separated" — the field should validate comma-separated format and reject non-conforming input.  
+**Severity:** Medium — downstream processing will likely fail silently.  
+**Needed:** Validate that the entered value contains at least one comma (or is a single valid ID), and show the standardized error message: *"Patient List IDs format is incorrect, please correct to move to the next screen."*  
+**Test:** `tests/patients-of-interest.spec.ts` → `"shows error when Patient List IDs are entered without comma separators"`
+
+---
+
 ## 🔴 Not Yet Implemented
 
 ### 1. "Cannot delete" protection on HSLOC and Encounter.type normalizations

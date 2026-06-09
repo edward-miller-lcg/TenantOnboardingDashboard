@@ -10,6 +10,10 @@ import { test, expect } from '../fixtures/test-fixtures';
  * - Epic: Patient List IDs (comma-separated), minimum of 6 IDs mentioned in AC.
  * - Cerner: sFTP URL, Username, Password (password deidentified with **)
  * - The component renders Epic or Cerner form based on ehrVendor in session.
+ *
+ * BUG-3 (User testing, Janet Alonzo 2026-06-09):
+ *   POI field accepted input without commas — no format validation present.
+ *   Tests marked test.fail() below will pass once validation is added.
  */
 
 test.describe('Patients of Interest — Epic', () => {
@@ -39,6 +43,46 @@ test.describe('Patients of Interest — Epic', () => {
   });
 
 });
+
+  // ── BUG-3 ──────────────────────────────────────────────────────────────────
+  // Reported by Janet Alonzo 2026-06-09:
+  // The field accepts free text with no comma validation. Input without commas
+  // saves successfully when it should be rejected.
+
+  test.fail(
+    'BUG-3: shows error when Patient List IDs entered without comma separators',
+    async ({ mockedPage: page, token }) => {
+      await page.goto(`/onboarding/${token}/patients-of-interest`);
+      const field = page.getByLabel(/patient list id/i);
+      if (await field.count() === 0) test.skip();
+
+      await field.fill('NOSPACE_NO_COMMA_JUST_ONE_VALUE');
+      await page.locator('button.nhsn-btn-primary').click();
+
+      // Should NOT navigate away — should show validation error
+      await expect(page).toHaveURL(/patients-of-interest/);
+      await expect(
+        page.getByText(/format is incorrect|comma|separated/i)
+      ).toBeVisible();
+    }
+  );
+
+  test.fail(
+    'BUG-3: shows error when Patient List IDs field is blank',
+    async ({ mockedPage: page, token }) => {
+      await page.goto(`/onboarding/${token}/patients-of-interest`);
+      const field = page.getByLabel(/patient list id/i);
+      if (await field.count() === 0) test.skip();
+
+      await field.fill('');
+      await page.locator('button.nhsn-btn-primary').click();
+
+      await expect(page).toHaveURL(/patients-of-interest/);
+      await expect(
+        page.getByText(/required|patient list ids/i)
+      ).toBeVisible();
+    }
+  );
 
 test.describe('Patients of Interest — Cerner', () => {
 
