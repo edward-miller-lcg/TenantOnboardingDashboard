@@ -46,6 +46,29 @@ stages:
             parameters:
               publishArtifact: false
 
+      # ── Playwright E2E Smoke Tests ────────────────────────────────────────
+      # Runs against the deployed dev environment so no local stack is needed.
+      # BASE_URL and API_URL come from a variable group — set in ADO Library.
+      # On PRs that don't have a deployed env available, set SKIP_E2E=true in
+      # the pipeline variables to skip this job.
+      - job: E2ESmokeTests
+        displayName: E2E Smoke Tests (Playwright)
+        dependsOn: [BackendValidation, FrontendValidation]
+        condition: |
+          and(
+            succeeded('BackendValidation'),
+            succeeded('FrontendValidation'),
+            ne(variables['SKIP_E2E'], 'true')
+          )
+        variables:
+          - group: nhsnlink-dev-urls  # ADO Library variable group: BASE_URL, API_URL
+        steps:
+          - template: templates/steps-e2e-playwright.yml
+            parameters:
+              baseUrl: $(BASE_URL)
+              apiUrl: $(API_URL)
+              publishReport: true
+
       # ── Docker build check (no push) ──────────────────────────────────────
       # Validates Dockerfiles compile without pushing to a registry.
       - job: DockerValidation

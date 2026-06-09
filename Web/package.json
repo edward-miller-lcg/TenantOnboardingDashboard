@@ -6,7 +6,12 @@
     "start": "ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "test": "ng test",
+    "e2e": "playwright test --config=e2e/playwright.config.ts",
+    "e2e:setup": "playwright test --project=setup --config=e2e/playwright.config.ts",
+    "e2e:smoke": "playwright test --project=chromium --config=e2e/playwright.config.ts tests/smoke",
+    "e2e:normalizations": "playwright test --project=chromium --config=e2e/playwright.config.ts tests/normalizations",
+    "e2e:report": "playwright show-report e2e/test-results/html-report"
   },
   "private": true,
   "packageManager": "npm@11.12.1",
@@ -30,6 +35,7 @@
     "@angular/build": "^21.2.11",
     "@angular/cli": "^21.2.11",
     "@angular/compiler-cli": "^21.2.0",
+    "@playwright/test": "^1.60.0",
     "jsdom": "^28.0.0",
     "prettier": "^3.8.1",
     "typescript": "~5.9.2",

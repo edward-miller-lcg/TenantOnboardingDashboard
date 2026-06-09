@@ -12,6 +12,11 @@ Web/node_modules/
 Web/dist/
 Web/.angular/
 
+# Playwright
+Web/e2e/.auth/           # test session tokens — never commit
+Web/e2e/test-results/
+Web/playwright-report/
+
 # Environment overrides
 **/appsettings.local.json
 **/.env.local

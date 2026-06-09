@@ -1,0 +1,81 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  Reusable template: Run Playwright E2E smoke tests.
+#
+#  Parameters:
+#    baseUrl       - SPA base URL (default: http://localhost:4200 — expects a
+#                    running stack; override to a deployed env for nightly runs)
+#    apiUrl        - Backend API base URL (default: http://localhost:5096)
+#    testFilter    - Playwright --grep filter (default: empty = run all tests)
+#    publishReport - Whether to publish the HTML report as a pipeline artifact
+# ─────────────────────────────────────────────────────────────────────────────
+parameters:
+  - name: baseUrl
+    type: string
+    default: 'http://localhost:4200'
+  - name: apiUrl
+    type: string
+    default: 'http://localhost:5096'
+  - name: testFilter
+    type: string
+    default: ''
+  - name: publishReport
+    type: boolean
+    default: true
+
+steps:
+  - task: NodeTool@0
+    displayName: 'Use Node 23'
+    inputs:
+      versionSpec: '23.x'
+
+  - script: npm ci
+    displayName: 'npm ci (Web)'
+    workingDirectory: Web
+
+  - script: npx playwright install chromium --with-deps
+    displayName: 'Install Playwright browsers'
+    workingDirectory: Web
+
+  # Run the global setup project first to create a test session
+  - script: |
+      npx playwright test \
+        --project=setup \
+        --config=e2e/playwright.config.ts
+    displayName: 'Playwright — global setup (create test session)'
+    workingDirectory: Web
+    env:
+      BASE_URL: ${{ parameters.baseUrl }}
+      API_URL: ${{ parameters.apiUrl }}
+      CI: true
+
+  # Run all smoke tests (or filtered subset)
+  - script: |
+      npx playwright test \
+        --project=chromium \
+        --config=e2e/playwright.config.ts \
+        ${{ if ne(parameters.testFilter, '') }}:
+          --grep "${{ parameters.testFilter }}"
+    displayName: 'Playwright — smoke tests'
+    workingDirectory: Web
+    env:
+      BASE_URL: ${{ parameters.baseUrl }}
+      API_URL: ${{ parameters.apiUrl }}
+      CI: true
+    continueOnError: true  # Always publish results even on test failure
+
+  - task: PublishTestResults@2
+    displayName: 'Publish Playwright test results (JUnit)'
+    condition: always()
+    inputs:
+      testResultsFormat: JUnit
+      testResultsFiles: 'Web/e2e/test-results/junit.xml'
+      failTaskOnFailedTests: true
+      testRunTitle: 'Playwright E2E Smoke Tests'
+
+  - ${{ if eq(parameters.publishReport, true) }}:
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish Playwright HTML report'
+      condition: always()
+      inputs:
+        PathtoPublish: 'Web/e2e/test-results/html-report'
+        ArtifactName: 'playwright-report'
