@@ -61,8 +61,8 @@ test.describe('Overview / Step List', () => {
   // hyperlink on the overview page. All other completed steps are clickable.
   // This test will FAIL until the link is enabled.
 
-  test.fail(
-    'BUG-1: Compliance Attestation is a clickable link after completion',
+  test(
+    'Compliance Attestation is a clickable link after completion',
     async ({ mockedPage: page, token }) => {
       await page.goto(`/onboarding/${token}/overview`);
 

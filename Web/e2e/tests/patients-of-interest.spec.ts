@@ -13,7 +13,7 @@ import { test, expect } from '../fixtures/test-fixtures';
  *
  * BUG-3 (User testing, Janet Alonzo 2026-06-09):
  *   POI field accepted input without commas — no format validation present.
- *   Tests marked test.fail() below will pass once validation is added.
+ *   Fixed: comma-separated validator added to patientListIds FormControl.
  */
 
 test.describe('Patients of Interest — Epic', () => {
@@ -49,8 +49,8 @@ test.describe('Patients of Interest — Epic', () => {
   // The field accepts free text with no comma validation. Input without commas
   // saves successfully when it should be rejected.
 
-  test.fail(
-    'BUG-3: shows error when Patient List IDs entered without comma separators',
+  test(
+    'shows error when Patient List IDs entered without comma separators',
     async ({ mockedPage: page, token }) => {
       await page.goto(`/onboarding/${token}/patients-of-interest`);
       const field = page.getByLabel(/patient list id/i);
@@ -67,8 +67,8 @@ test.describe('Patients of Interest — Epic', () => {
     }
   );
 
-  test.fail(
-    'BUG-3: shows error when Patient List IDs field is blank',
+  test(
+    'shows error when Patient List IDs field is blank',
     async ({ mockedPage: page, token }) => {
       await page.goto(`/onboarding/${token}/patients-of-interest`);
       const field = page.getByLabel(/patient list id/i);

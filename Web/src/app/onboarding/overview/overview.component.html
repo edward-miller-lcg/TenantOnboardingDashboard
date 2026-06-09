@@ -9,15 +9,14 @@
   <p>Complete the following steps to setup the NHSNLink application...</p>
 
   <div class="checklist">
-    <!-- Compliance Attestation -->
+    <!-- Compliance Attestation — always accessible, always a link (first step) -->
     <div class="checklist__item">
       @if (sessionService.isStepCompleted('ComplianceAttestation')) {
         <span class="check checked">&#9745;</span>
-        <a [routerLink]="['/onboarding', token]">Compliance Attestation</a>
       } @else {
         <span class="check">&#9744;</span>
-        <a [routerLink]="['/onboarding', token]">Compliance Attestation</a>
       }
+      <a [routerLink]="['/onboarding', token, 'compliance-attestation']">Compliance Attestation</a>
     </div>
 
     <h2 class="step-section-header">Configuration</h2>

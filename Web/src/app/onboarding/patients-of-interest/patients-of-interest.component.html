@@ -15,7 +15,13 @@
         <input id="listIds" type="text" formControlName="patientListIds"
                placeholder="e.g. 123,456,789" style="max-width:600px" />
         @if (epicForm.controls.patientListIds.touched && epicForm.controls.patientListIds.hasError('required')) {
-          <div class="field-error">Patient List IDs are required.</div>
+          <div class="field-error">Patient List IDs is required, please populate with needed information.</div>
+        }
+        @if (epicForm.controls.patientListIds.touched && epicForm.controls.patientListIds.hasError('commaRequired')) {
+          <div class="field-error">Patient List IDs format is incorrect — IDs must be comma separated (e.g. 123,456,789).</div>
+        }
+        @if (epicForm.controls.patientListIds.touched && epicForm.controls.patientListIds.hasError('invalidFormat')) {
+          <div class="field-error">Patient List IDs format is incorrect — each ID should contain only letters, numbers, and hyphens.</div>
         }
       </div>
       @if (error) { <div class="nhsn-error-msg">{{ error }}</div> }

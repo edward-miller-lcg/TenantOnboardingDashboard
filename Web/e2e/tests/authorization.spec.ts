@@ -52,8 +52,8 @@ test.describe('Authorization', () => {
   // When returning to the Authorization page from a later step, the checkbox
   // appears unchecked even though the step is marked complete in the session.
   // This test will FAIL until the component restores checkbox state from session.
-  test.fail(
-    'BUG-2: checkbox is pre-checked when returning to a completed Authorization step',
+  test(
+    'checkbox is pre-checked when returning to a completed Authorization step',
     async ({ mockedPage: page, token }) => {
       // Complete the step first
       await page.goto(`/onboarding/${token}/authorization`);

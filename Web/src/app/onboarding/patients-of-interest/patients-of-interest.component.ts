@@ -1,9 +1,29 @@
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { AbstractControl, FormControl, FormGroup, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { OnboardingService } from '../../services/onboarding.service';
 import { SessionService } from '../../services/session.service';
 import { OnboardingBreadcrumbComponent } from '../../core/onboarding-breadcrumb/onboarding-breadcrumb.component';
+
+/**
+ * Validates that the value is a comma-separated list of at least two IDs.
+ * Each ID may contain letters, digits, and hyphens.
+ * Single values with no comma separator are rejected (BUG-3 fix).
+ */
+function patientListIdsValidator(control: AbstractControl): ValidationErrors | null {
+  const raw: string = (control.value ?? '').trim();
+  if (!raw) return null; // let Validators.required handle the empty case
+
+  const ids = raw.split(',').map((s: string) => s.trim()).filter((s: string) => s.length > 0);
+
+  if (ids.length < 2) {
+    return { commaRequired: true };
+  }
+  if (ids.some((id: string) => !/^[\w-]+$/.test(id))) {
+    return { invalidFormat: true };
+  }
+  return null;
+}
 
 @Component({
   selector: 'app-patients-of-interest',
@@ -19,7 +39,7 @@ export class PatientsOfInterestComponent implements OnInit {
   error = '';
 
   epicForm = new FormGroup({
-    patientListIds: new FormControl('', Validators.required)
+    patientListIds: new FormControl('', [Validators.required, patientListIdsValidator])
   });
 
   cernerForm = new FormGroup({
@@ -47,6 +67,9 @@ export class PatientsOfInterestComponent implements OnInit {
   get isEpic(): boolean { return this.vendor === 'Epic'; }
 
   save(): void {
+    if (this.isEpic && this.epicForm.invalid) { this.epicForm.markAllAsTouched(); return; }
+    if (!this.isEpic && this.cernerForm.invalid) { this.cernerForm.markAllAsTouched(); return; }
+
     this.saving = true;
     this.error = '';
     const obs = this.isEpic

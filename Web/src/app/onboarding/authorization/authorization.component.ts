@@ -29,6 +29,8 @@ export class AuthorizationComponent implements OnInit {
   ngOnInit(): void {
     this.token = this.route.parent?.snapshot.paramMap.get('token') ?? '';
     this.vendor = this.sessionService.session()?.ehrVendor ?? 'Epic';
+    // Restore checkbox state when returning to a previously completed step
+    this.confirmed = this.sessionService.isStepCompleted('Authorization');
   }
 
   get checkboxLabel(): string {
