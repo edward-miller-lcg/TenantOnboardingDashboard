@@ -4,7 +4,13 @@
     <a href="https://servicenow.example.com" target="_blank">Contact Support</a>
   </div>
 
-  <h1 class="page-title">Normalizations</h1>
+  <div class="norm-header-row">
+    <h1 class="page-title">Normalizations</h1>
+    <div class="view-toggle">
+      <button type="button" class="view-toggle__btn" [class.view-toggle__btn--active]="uiPreference.normalizationView() === 'guided'" (click)="uiPreference.setNormalizationView('guided')">Guided View</button>
+      <button type="button" class="view-toggle__btn" [class.view-toggle__btn--active]="uiPreference.normalizationView() === 'grid'" (click)="uiPreference.setNormalizationView('grid')">Power-User View</button>
+    </div>
+  </div>
   <p>
     Data normalizations transform your FHIR resources before report generation.
     They run in sequence — each operation receives the output of the previous one.
@@ -14,40 +20,50 @@
   @if (loading) {
     <p>Loading normalizations...</p>
   } @else {
-    <div class="norm-list">
-      @for (item of normalizations; track item.id) {
-        <div class="norm-item" [class.norm-item--disabled]="item.isDisabled">
-          <div class="norm-info">
-            <div class="norm-name">
-              {{ item.name }}
-              @if (item.isDisabled) {
-                <span class="norm-badge norm-badge--disabled">Disabled</span>
+    @if (uiPreference.normalizationView() === 'grid') {
+      <app-normalization-grid
+        [items]="normalizations"
+        [typeLabel]="typeLabel"
+        [isEditable]="isEditable"
+        (editItem)="edit($event)"
+        (deleteItem)="delete($event)"
+      />
+    } @else {
+      <div class="norm-list">
+        @for (item of normalizations; track item.id) {
+          <div class="norm-item" [class.norm-item--disabled]="item.isDisabled">
+            <div class="norm-info">
+              <div class="norm-name">
+                {{ item.name }}
+                @if (item.isDisabled) {
+                  <span class="norm-badge norm-badge--disabled">Disabled</span>
+                }
+              </div>
+              <div class="norm-meta">
+                <span class="norm-badge">{{ typeLabel(item.operationType) }}</span>
+                @for (rt of item.resourceTypes; track rt) {
+                  <span class="norm-badge norm-badge--resource">{{ rt }}</span>
+                }
+              </div>
+              @if (item.description) {
+                <div class="norm-description">{{ item.description }}</div>
               }
             </div>
-            <div class="norm-meta">
-              <span class="norm-badge">{{ typeLabel(item.operationType) }}</span>
-              @for (rt of item.resourceTypes; track rt) {
-                <span class="norm-badge norm-badge--resource">{{ rt }}</span>
+            <div class="norm-actions">
+              @if (isEditable(item)) {
+                <button class="nhsn-btn" (click)="edit(item)">Edit</button>
+              }
+              @if (item.canDelete) {
+                <button class="nhsn-btn nhsn-btn-danger" (click)="delete(item)">Delete</button>
               }
             </div>
-            @if (item.description) {
-              <div class="norm-description">{{ item.description }}</div>
-            }
           </div>
-          <div class="norm-actions">
-            @if (isEditable(item)) {
-              <button class="nhsn-btn" (click)="edit(item)">Edit</button>
-            }
-            @if (item.canDelete) {
-              <button class="nhsn-btn nhsn-btn-danger" (click)="delete(item)">Delete</button>
-            }
-          </div>
-        </div>
-      }
-      @if (normalizations.length === 0) {
-        <p class="norm-empty">No normalizations configured yet. Complete the Location and Encounter mapping steps, or add one below.</p>
-      }
-    </div>
+        }
+        @if (normalizations.length === 0) {
+          <p class="norm-empty">No normalizations configured yet. Complete the Location and Encounter mapping steps, or add one below.</p>
+        }
+      </div>
+    }
 
     <div class="add-menu-container">
       <button class="nhsn-btn" (click)="addMenuOpen = !addMenuOpen">

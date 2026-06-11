@@ -1,0 +1,20 @@
+<nav class="workspace-stepper" aria-label="Setup progress">
+  @for (step of steps; track step.path; let last = $last) {
+    <div class="workspace-stepper__step"
+         [class.current]="isCurrent(step)"
+         [class.done]="isCompleted(step)"
+         [class.locked]="!isAccessible(step)">
+      @if (isAccessible(step) && !isCurrent(step)) {
+        <a [routerLink]="['/onboarding', token, step.path]" class="workspace-stepper__circle">
+          {{ isCompleted(step) ? '✓' : '' }}
+        </a>
+      } @else {
+        <span class="workspace-stepper__circle">{{ isCompleted(step) ? '✓' : '' }}</span>
+      }
+      <span class="workspace-stepper__label">{{ step.label }}</span>
+    </div>
+    @if (!last) {
+      <div class="workspace-stepper__connector" [class.done]="isCompleted(step)"></div>
+    }
+  }
+</nav>

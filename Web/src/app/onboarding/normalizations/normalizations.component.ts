@@ -2,8 +2,10 @@ import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { OnboardingService } from '../../services/onboarding.service';
 import { SessionService } from '../../services/session.service';
+import { UiPreferenceService } from '../../services/ui-preference.service';
 import { NormalizationItem } from '../../interfaces/onboarding.interfaces';
 import { OnboardingBreadcrumbComponent } from '../../core/onboarding-breadcrumb/onboarding-breadcrumb.component';
+import { NormalizationGridComponent } from './grid/normalization-grid.component';
 
 const TYPE_LABELS: Record<string, string> = {
   CodeMap: 'Code Map',
@@ -18,7 +20,7 @@ const EDITABLE_TYPES = new Set(['CodeMap', 'CopyProperty', 'ConditionalTransform
 @Component({
   selector: 'app-normalizations',
   standalone: true,
-  imports: [RouterLink, OnboardingBreadcrumbComponent],
+  imports: [RouterLink, OnboardingBreadcrumbComponent, NormalizationGridComponent],
   templateUrl: './normalizations.component.html',
   styleUrl: './normalizations.component.scss'
 })
@@ -33,6 +35,7 @@ export class NormalizationsComponent implements OnInit {
     private router: Router,
     private onboardingService: OnboardingService,
     public sessionService: SessionService,
+    public uiPreference: UiPreferenceService,
     private cdr: ChangeDetectorRef
   ) {}
 

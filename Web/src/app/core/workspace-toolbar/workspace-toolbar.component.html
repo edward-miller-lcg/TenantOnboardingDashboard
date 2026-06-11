@@ -1,0 +1,8 @@
+<mat-toolbar class="workspace-toolbar">
+  <span class="workspace-toolbar__brand">NHSNLink Workspace</span>
+  @if (sessionService.session(); as session) {
+    <span class="workspace-toolbar__facility">{{ session.healthSystemName }}</span>
+  }
+  <span class="workspace-toolbar__spacer"></span>
+  <button mat-stroked-button (click)="switchToClassic()">Switch to classic view</button>
+</mat-toolbar>

@@ -6,5 +6,8 @@
     <li class="nhsn-nav__item nhsn-nav__item--active">
       <a [routerLink]="['/onboarding', token, 'overview']">NHSNLink &#9658;</a>
     </li>
+    <li class="nhsn-nav__item nhsn-nav__item--toggle">
+      <a (click)="uiPreference.set('modern')">Try the new workspace &#9658;</a>
+    </li>
   </ul>
 </nav>

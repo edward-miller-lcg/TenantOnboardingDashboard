@@ -1,0 +1,72 @@
+<div class="grid-toolbar">
+  <label class="grid-filter">
+    Resource type
+    <select [ngModel]="resourceFilter()" (ngModelChange)="setResourceFilter($event)">
+      <option value="">All</option>
+      @for (rt of resourceTypes(); track rt) {
+        <option [value]="rt">{{ rt }}</option>
+      }
+    </select>
+  </label>
+
+  <label class="grid-filter grid-filter--checkbox">
+    <input type="checkbox" [ngModel]="showDisabled()" (ngModelChange)="showDisabled.set($event)" />
+    Show disabled
+  </label>
+</div>
+
+<table class="norm-grid">
+  <thead>
+    <tr>
+      <th class="norm-grid__seq">Seq</th>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Resource</th>
+      <th>Status</th>
+      <th class="norm-grid__actions">Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    @for (row of rows(); track row.item.id) {
+      <tr [class.norm-grid__row--disabled]="row.item.isDisabled">
+        <td class="norm-grid__seq">{{ row.seq }}</td>
+        <td>
+          {{ row.item.name }}
+          @if (row.item.description) {
+            <div class="norm-grid__description">{{ row.item.description }}</div>
+          }
+        </td>
+        <td>{{ typeLabel(row.item.operationType) }}</td>
+        <td>
+          @for (rt of row.item.resourceTypes; track rt) {
+            <span class="norm-badge norm-badge--resource">{{ rt }}</span>
+          }
+        </td>
+        <td>
+          <span class="norm-grid__status" [class.norm-grid__status--disabled]="row.item.isDisabled">
+            {{ row.item.isDisabled ? 'Disabled' : 'Enabled' }}
+          </span>
+        </td>
+        <td class="norm-grid__actions">
+          @if (isEditable(row.item)) {
+            <button class="nhsn-btn" (click)="editItem.emit(row.item)">Edit</button>
+          }
+          @if (row.item.canDelete) {
+            <button class="nhsn-btn nhsn-btn-danger" (click)="deleteItem.emit(row.item)">Delete</button>
+          }
+        </td>
+      </tr>
+    }
+    @if (rows().length === 0) {
+      <tr>
+        <td colspan="6" class="norm-grid__empty">No normalizations match the current filters.</td>
+      </tr>
+    }
+  </tbody>
+</table>
+
+<p class="norm-grid__note">
+  Sequence numbers shown above reflect display order only. Inline sequence editing,
+  drag-to-reorder, the test panel, bulk actions, and vendor-scoped operations are
+  planned follow-ons — see <code>docs/normalization-power-user-ux.md</code>.
+</p>

@@ -1,6 +1,6 @@
 # Normalization Power-User UX — Design Proposal
 
-> Status: **proposed** — not yet implemented. This documents the target experience for a future sprint once the wizard-style flow (Phase 1) is stable.
+> Status: **partially implemented** (Phase 5 of [modern-ui-proposal.md](modern-ui-proposal.md)). The Guided/Power-User toggle and the core Seq/Name/Type/Resource/Status/Actions grid (with resource-type filter and show-disabled toggle) are live under Manage → Normalizations in the modern shell. Sequence reordering, inline status toggle, the detail/test panels, bulk actions, and the vendor-scope tab described below remain unimplemented — see "What's Deliberately Excluded" and the Phase 5 notes in `modern-ui-proposal.md`.
 
 ---
 

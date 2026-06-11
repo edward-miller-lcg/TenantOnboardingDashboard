@@ -1,4 +1,4 @@
-@if (breadcrumbs.length > 0) {
+@if (breadcrumbs.length > 0 && uiPreference.shellMode() !== 'modern') {
   <nav class="ob-breadcrumb">
     @for (crumb of breadcrumbs; track crumb.label; let last = $last) {
       @if (!last) {

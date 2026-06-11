@@ -1,6 +1,7 @@
 import { Component, Input, OnChanges } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { SessionService } from '../../services/session.service';
+import { UiPreferenceService } from '../../services/ui-preference.service';
 
 interface BreadcrumbItem {
   label: string;
@@ -36,7 +37,10 @@ export class OnboardingBreadcrumbComponent implements OnChanges {
 
   breadcrumbs: BreadcrumbItem[] = [];
 
-  constructor(private sessionService: SessionService) {}
+  constructor(
+    private sessionService: SessionService,
+    public uiPreference: UiPreferenceService
+  ) {}
 
   ngOnChanges(): void {
     this.buildBreadcrumbs();

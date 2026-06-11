@@ -8,3 +8,16 @@
   background: white;
   overflow-y: auto;
 }
+
+.workspace-container {
+  height: calc(100vh - 64px);
+}
+
+.workspace-sidenav {
+  width: 250px;
+  overflow-y: auto;
+}
+
+.workspace-content {
+  background: #F7F7FB;
+}

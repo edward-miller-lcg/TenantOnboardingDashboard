@@ -1,8 +1,23 @@
-<app-nhsn-header />
+@if (uiPreference.shellMode() === 'modern') {
+  <app-workspace-toolbar [token]="token" />
+  <mat-sidenav-container class="workspace-container">
+    <mat-sidenav mode="side" opened class="workspace-sidenav">
+      <app-workspace-nav [token]="token" />
+    </mat-sidenav>
+    <mat-sidenav-content class="workspace-content">
+      @if (isSetupPage()) {
+        <app-workspace-stepper [token]="token" [currentPath]="currentStepPath()" />
+      }
+      <router-outlet />
+    </mat-sidenav-content>
+  </mat-sidenav-container>
+} @else {
+  <app-nhsn-header />
 
-<div class="shell-body">
-  <app-nhsn-nav [token]="token" />
-  <main class="shell-main">
-    <router-outlet />
-  </main>
-</div>
+  <div class="shell-body">
+    <app-nhsn-nav [token]="token" />
+    <main class="shell-main">
+      <router-outlet />
+    </main>
+  </div>
+}

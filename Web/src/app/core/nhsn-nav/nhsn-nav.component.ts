@@ -1,5 +1,6 @@
 import { Component, Input } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { UiPreferenceService } from '../../services/ui-preference.service';
 
 @Component({
   selector: 'app-nhsn-nav',
@@ -10,4 +11,6 @@ import { RouterLink } from '@angular/router';
 })
 export class NhsnNavComponent {
   @Input() token = '';
+
+  constructor(public uiPreference: UiPreferenceService) {}
 }

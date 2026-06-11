@@ -1,0 +1,42 @@
+.workspace-nav {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 16px;
+
+  &__section-title {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.6;
+    padding: 16px 16px 4px;
+  }
+
+  &__check {
+    display: inline-block;
+    width: 1.1em;
+
+    &.done {
+      color: var(--mat-sys-primary, #2E8540);
+      font-weight: 700;
+    }
+  }
+
+  &__disabled {
+    display: flex;
+    align-items: center;
+    min-height: 48px;
+    padding: 0 16px 0 calc(16px + 1.1em);
+    opacity: 0.4;
+    cursor: default;
+
+    &--flush {
+      padding-left: 16px;
+    }
+  }
+
+  a.active {
+    font-weight: 600;
+    background: rgba(0, 0, 0, 0.05);
+  }
+}

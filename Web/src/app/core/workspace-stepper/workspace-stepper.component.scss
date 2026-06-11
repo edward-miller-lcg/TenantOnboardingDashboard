@@ -1,0 +1,73 @@
+.workspace-stepper {
+  display: flex;
+  align-items: flex-start;
+  padding: 16px 24px;
+  background: white;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  overflow-x: auto;
+
+  &__step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex-shrink: 0;
+    width: 96px;
+    text-align: center;
+  }
+
+  &__circle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid rgba(0, 0, 0, 0.2);
+    color: rgba(0, 0, 0, 0.6);
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 0.875rem;
+    box-sizing: border-box;
+    background: white;
+  }
+
+  &__label {
+    margin-top: 6px;
+    font-size: 0.75rem;
+    line-height: 1.2;
+    color: rgba(0, 0, 0, 0.6);
+  }
+
+  &__connector {
+    flex: 1 1 auto;
+    height: 2px;
+    background: rgba(0, 0, 0, 0.2);
+    margin-top: 13px;
+    min-width: 16px;
+
+    &.done {
+      background: var(--mat-sys-primary, #6750A4);
+    }
+  }
+
+  &__step.current &__circle {
+    border-color: var(--mat-sys-primary, #6750A4);
+    color: var(--mat-sys-primary, #6750A4);
+  }
+
+  &__step.current &__label {
+    font-weight: 700;
+    color: rgba(0, 0, 0, 0.87);
+  }
+
+  &__step.done &__circle {
+    border-color: var(--mat-sys-primary, #6750A4);
+    background: var(--mat-sys-primary, #6750A4);
+    color: white;
+  }
+
+  &__step.locked &__circle,
+  &__step.locked &__label {
+    opacity: 0.4;
+  }
+}

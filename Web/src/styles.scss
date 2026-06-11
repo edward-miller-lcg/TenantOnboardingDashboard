@@ -12,11 +12,13 @@ $nhsn-bg: #F1F1F1;
 $nhsn-success: #2E8540;
 $nhsn-error: #D93025;
 
+// Modern "workspace" theme — used by the new standalone shell (toolbar, sidenav, etc).
+// The legacy NHSN/CDC UI uses its own hardcoded $nhsn-* palette below and is unaffected.
 html {
   @include mat.theme((
     color: (
       theme-type: light,
-      primary: mat.$azure-palette,
+      primary: mat.$violet-palette,
     ),
     typography: Roboto,
     density: 0
@@ -196,4 +198,100 @@ a {
   .norm-name { font-weight: 600; }
   .norm-type { font-size: 0.875rem; color: $nhsn-muted; }
   .norm-actions { display: flex; gap: 8px; }
+}
+
+// ---------------------------------------------------------------------------
+// Modern shell overrides (Phase 4)
+//
+// Step pages are rendered unchanged via <router-outlet> in both shells (see
+// modern-ui-proposal.md). Rather than rewriting each step's template/SCSS,
+// these rules restyle the shared `.nhsn-*`/`.norm-*` classes to match the
+// Material violet theme whenever they appear inside `.workspace-content`
+// (i.e. the modern shell). Legacy mode is completely untouched.
+// ---------------------------------------------------------------------------
+.workspace-content {
+  .page-title {
+    font-family: Roboto, 'Source Sans Pro', sans-serif;
+    color: var(--mat-sys-on-surface, $nhsn-text);
+  }
+
+  .nhsn-btn {
+    border-radius: 20px;
+    border: 1px solid var(--mat-sys-outline, $nhsn-border);
+    color: var(--mat-sys-primary, #6750A4);
+    font-family: Roboto, sans-serif;
+    font-weight: 500;
+
+    &:hover {
+      background: var(--mat-sys-primary, #6750A4);
+      border-color: var(--mat-sys-primary, #6750A4);
+      color: var(--mat-sys-on-primary, white);
+    }
+
+    &.nhsn-btn-primary {
+      background: var(--mat-sys-primary, #6750A4);
+      border-color: var(--mat-sys-primary, #6750A4);
+      color: var(--mat-sys-on-primary, white);
+
+      &:hover { background: var(--mat-sys-primary, #6750A4); opacity: 0.9; }
+    }
+
+    &.nhsn-btn-danger {
+      border-color: var(--mat-sys-error, #D93025);
+      color: var(--mat-sys-error, #D93025);
+
+      &:hover {
+        background: var(--mat-sys-error, #D93025);
+        border-color: var(--mat-sys-error, #D93025);
+        color: var(--mat-sys-on-error, white);
+      }
+    }
+  }
+
+  .nhsn-form-group {
+    label { font-family: Roboto, sans-serif; font-weight: 600; }
+
+    input[type="text"],
+    input[type="url"],
+    input[type="tel"],
+    input[type="password"],
+    textarea,
+    select {
+      border-radius: 4px;
+      border: 1px solid var(--mat-sys-outline, $nhsn-border);
+      font-family: Roboto, sans-serif;
+
+      &:focus {
+        outline: 2px solid var(--mat-sys-primary, #6750A4);
+        border-color: var(--mat-sys-primary, #6750A4);
+      }
+    }
+  }
+
+  .nhsn-success-msg { color: var(--mat-sys-primary, $nhsn-success); }
+  .nhsn-error-msg, .field-error { color: var(--mat-sys-error, #D93025); }
+
+  .nhsn-table, .norm-grid {
+    th { background: var(--mat-sys-surface-variant, #f1f1f1); font-family: Roboto, sans-serif; }
+  }
+
+  .norm-badge {
+    border-radius: 12px;
+    font-family: Roboto, sans-serif;
+  }
+
+  .norm-badge--resource {
+    background: var(--mat-sys-secondary-container, #E8DEF8);
+    color: var(--mat-sys-on-secondary-container, #1D192B);
+  }
+
+  .add-dropdown {
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+
+  .view-toggle__btn--active {
+    background: var(--mat-sys-primary, #6750A4);
+    color: var(--mat-sys-on-primary, white);
+  }
 }

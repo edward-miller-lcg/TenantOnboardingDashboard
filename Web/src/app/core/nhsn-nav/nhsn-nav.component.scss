@@ -36,5 +36,11 @@
     &--home > a {
       font-weight: 600;
     }
+
+    &--toggle > a {
+      font-style: italic;
+      opacity: 0.85;
+      cursor: pointer;
+    }
   }
 }

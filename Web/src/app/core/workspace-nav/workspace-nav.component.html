@@ -1,0 +1,33 @@
+<div class="workspace-nav">
+  <div class="workspace-nav__section-title">Setup</div>
+  <mat-nav-list>
+    @for (item of setupItems; track item.path) {
+      @if (isAccessible(item)) {
+        <a mat-list-item
+           [routerLink]="['/onboarding', token, item.path]"
+           routerLinkActive="active"
+           [routerLinkActiveOptions]="{ exact: item.path === '' }">
+          <span class="workspace-nav__check" [class.done]="isCompleted(item)">
+            {{ isCompleted(item) ? '✓' : '' }}
+          </span>
+          {{ item.label }}
+        </a>
+      } @else {
+        <div class="workspace-nav__disabled">{{ item.label }}</div>
+      }
+    }
+  </mat-nav-list>
+
+  <div class="workspace-nav__section-title">Manage</div>
+  <mat-nav-list>
+    @for (item of manageItems; track item.path) {
+      @if (isAccessible(item)) {
+        <a mat-list-item [routerLink]="['/onboarding', token, item.path]" routerLinkActive="active">
+          {{ item.label }}
+        </a>
+      } @else {
+        <div class="workspace-nav__disabled workspace-nav__disabled--flush">{{ item.label }}</div>
+      }
+    }
+  </mat-nav-list>
+</div>
