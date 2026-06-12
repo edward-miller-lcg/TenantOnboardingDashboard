@@ -1,6 +1,7 @@
 import { Component } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DatePipe } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { OnboardingService } from '../services/onboarding.service';
 import { CreateSessionResponse, SessionResponse } from '../interfaces/onboarding.interfaces';
 import { NhsnHeaderComponent } from '../core/nhsn-header/nhsn-header.component';
@@ -8,7 +9,7 @@ import { NhsnHeaderComponent } from '../core/nhsn-header/nhsn-header.component';
 @Component({
   selector: 'app-admin',
   standalone: true,
-  imports: [ReactiveFormsModule, NhsnHeaderComponent, DatePipe],
+  imports: [ReactiveFormsModule, NhsnHeaderComponent, DatePipe, RouterLink],
   templateUrl: './admin.component.html',
   styleUrl: './admin.component.scss'
 })

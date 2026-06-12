@@ -123,3 +123,30 @@ export interface LocationTypeMappingData {
   sourceSystem: string;
   codes: CodeEntry[];
 }
+
+export type EhrTemplateCategory = 'Normalization' | 'QueryPlan';
+
+export interface EhrVendorTemplate {
+  id: string;
+  vendor: string;
+  category: EhrTemplateCategory;
+  resourceType: string;
+  name: string;
+  description?: string | null;
+  definitionJson: string;
+  sequence: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt?: string | null;
+}
+
+export interface EhrVendorTemplateRequest {
+  vendor: string;
+  category: EhrTemplateCategory;
+  resourceType: string;
+  name: string;
+  description?: string | null;
+  definitionJson: string;
+  sequence: number;
+  isActive: boolean;
+}

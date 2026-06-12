@@ -3,6 +3,9 @@ using LantanaGroup.Link.OnboardingService.Application.Models.Requests;
 using LantanaGroup.Link.OnboardingService.Application.Models.Responses;
 using LantanaGroup.Link.OnboardingService.Application.Services;
 using LantanaGroup.Link.OnboardingService.Infrastructure.Clients;
+using LantanaGroup.Link.OnboardingService.Infrastructure.Data.Entities;
+using LantanaGroup.Link.OnboardingService.Infrastructure.Data.Repository;
+using LantanaGroup.Link.OnboardingService.Infrastructure.Templates;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LantanaGroup.Link.OnboardingService.Controllers;
@@ -15,16 +18,22 @@ public class OnboardingController : ControllerBase
     private readonly TenantServiceClient _tenantClient;
     private readonly ReportServiceClient _reportClient;
     private readonly NormalizationServiceClient _normClient;
+    private readonly DataAcquisitionClient _dataAcqClient;
+    private readonly IEhrVendorTemplateRepository _templates;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<OnboardingController> _logger;
 
     private static readonly JsonSerializerOptions _jsonOpts = new(JsonSerializerDefaults.Web);
+
+    private const string DefaultEhrVendor = "Epic";
 
     public OnboardingController(
         IOnboardingService onboarding,
         TenantServiceClient tenantClient,
         ReportServiceClient reportClient,
         NormalizationServiceClient normClient,
+        DataAcquisitionClient dataAcqClient,
+        IEhrVendorTemplateRepository templates,
         IHttpClientFactory httpClientFactory,
         ILogger<OnboardingController> logger)
     {
@@ -32,8 +41,41 @@ public class OnboardingController : ControllerBase
         _tenantClient = tenantClient;
         _reportClient = reportClient;
         _normClient = normClient;
+        _dataAcqClient = dataAcqClient;
+        _templates = templates;
         _httpClientFactory = httpClientFactory;
         _logger = logger;
+    }
+
+    // -------------------------------------------------------------------------
+    // EHR vendor template helpers — see docs/ehr-vendor-templates-proposal.md
+    // -------------------------------------------------------------------------
+
+    private async Task<List<EhrVendorTemplate>> GetNormalizationTemplatesAsync(string? vendor, string resourceType, CancellationToken ct)
+    {
+        var effectiveVendor = string.IsNullOrWhiteSpace(vendor) ? DefaultEhrVendor : vendor;
+        var templates = await _templates.GetActiveAsync(effectiveVendor, EhrTemplateCategory.Normalization, resourceType, ct);
+
+        if (templates.Count == 0 && effectiveVendor != DefaultEhrVendor)
+        {
+            _logger.LogWarning("No normalization templates configured for vendor {Vendor}/{ResourceType}; falling back to {DefaultVendor}",
+                effectiveVendor, resourceType, DefaultEhrVendor);
+            templates = await _templates.GetActiveAsync(DefaultEhrVendor, EhrTemplateCategory.Normalization, resourceType, ct);
+        }
+
+        return templates;
+    }
+
+    private async Task<HttpResponseMessage> CreateOperationFromTemplateAsync(
+        EhrVendorTemplate template, string facilityId, Dictionary<string, object?> context, CancellationToken ct)
+    {
+        var operation = EhrTemplateMerger.Merge(template.DefinitionJson, context);
+        var payload = new NormCreatePayload(
+            ResourceTypes: new List<string> { template.ResourceType },
+            FacilityId: facilityId,
+            Operation: operation);
+
+        return await _normClient.CreateOperationAsync(payload, ct);
     }
 
     // -------------------------------------------------------------------------
@@ -107,7 +149,8 @@ public class OnboardingController : ControllerBase
     public async Task<IActionResult> SaveServerInfo(string token, [FromBody] ServerInfoRequest request, CancellationToken ct)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
-        if (await _onboarding.ValidateTokenAsync(token, ct) is null) return NotFound();
+        var session = await _onboarding.ValidateTokenAsync(token, ct);
+        if (session is null) return NotFound();
 
         await _onboarding.SaveFormDataAsync(token, new Dictionary<string, string>
         {
@@ -115,8 +158,45 @@ public class OnboardingController : ControllerBase
             ["EhrVendor"] = request.EhrVendor
         }, ct);
         await _onboarding.SetVendorAsync(token, request.EhrVendor, ct);
+
+        if (session.FacilityId is not null)
+            await InjectQueryPlansAsync(session.FacilityId, request.EhrVendor, ct);
+
         await _onboarding.CompleteStepAsync(token, "ServerInfo", ct);
         return Ok();
+    }
+
+    // Best-effort: vendor query-plan templates are injected into DataAcquisition
+    // but never block onboarding if the call fails (see ehr-vendor-templates-proposal.md).
+    private async Task InjectQueryPlansAsync(string facilityId, string ehrVendor, CancellationToken ct)
+    {
+        try
+        {
+            var effectiveVendor = string.IsNullOrWhiteSpace(ehrVendor) ? DefaultEhrVendor : ehrVendor;
+            var templates = await _templates.GetActiveAsync(effectiveVendor, EhrTemplateCategory.QueryPlan, ct: ct);
+            if (templates.Count == 0 && effectiveVendor != DefaultEhrVendor)
+                templates = await _templates.GetActiveAsync(DefaultEhrVendor, EhrTemplateCategory.QueryPlan, ct: ct);
+
+            if (templates.Count == 0) return;
+
+            var queryPlans = templates
+                .Select(t => JsonSerializer.Deserialize<QueryPlanDto>(t.DefinitionJson, _jsonOpts))
+                .Where(p => p is not null)
+                .Select(p => p!)
+                .ToList();
+
+            var payload = new QueryConfigPayload(facilityId, effectiveVendor, queryPlans);
+            var response = await _dataAcqClient.SaveQueryConfigAsync(facilityId, payload, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                var err = await response.Content.ReadAsStringAsync(ct);
+                _logger.LogWarning("Failed to save query config for {FacilityId}: {Error}", facilityId, err);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to inject query plan templates for {FacilityId}", facilityId);
+        }
     }
 
     [HttpPost("authorization")]
@@ -240,54 +320,35 @@ public class OnboardingController : ControllerBase
             ["LocationTypeMapping"] = JsonSerializer.Serialize(request, _jsonOpts)
         }, ct);
 
-        // Build CodeMap operation: Location.identifier.value → HSLOC
-        var codeMapPayload = new NormCreatePayload(
-            ResourceTypes: new List<string> { "Location" },
-            FacilityId: session.FacilityId,
-            Operation: new NormCodeMapDto
+        // Templates are vendor-specific (see docs/ehr-vendor-templates-proposal.md);
+        // the first template is treated as critical (CodeMap), subsequent ones as
+        // non-blocking (e.g. CopyLocation), matching the previous hardcoded behavior.
+        var context = new Dictionary<string, object?>
+        {
+            ["SourceSystem"] = request.SourceSystem,
+            ["CodeMaps"] = request.Codes.ToDictionary(
+                c => c.SourceCode,
+                c => new NormCodeEntryDto { Code = c.TargetCode, Display = c.Display })
+        };
+
+        var templates = await GetNormalizationTemplatesAsync(session.EhrVendor, "Location", ct);
+        for (var i = 0; i < templates.Count; i++)
+        {
+            var template = templates[i];
+            var response = await CreateOperationFromTemplateAsync(template, session.FacilityId, context, ct);
+            if (!response.IsSuccessStatusCode)
             {
-                Name = "Map Location Identifier to HSLOC",
-                Description = "Translates Epic location identifier codes to CDC NHSN HSLOC codes.",
-                FhirPath = "Location.identifier.value",
-                CodeSystemMaps = new List<NormCodeSystemMapDto>
+                var err = await response.Content.ReadAsStringAsync(ct);
+                _logger.LogWarning("Failed to create {TemplateName} for {FacilityId}: {Error}", template.Name, session.FacilityId, err);
+
+                if (i == 0)
                 {
-                    new NormCodeSystemMapDto
-                    {
-                        SourceSystem = request.SourceSystem,
-                        TargetSystem = "https://www.cdc.gov/nhsn/cdaportal/terminology/codesystem/hsloc.html",
-                        CodeMaps = request.Codes.ToDictionary(
-                            c => c.SourceCode,
-                            c => new NormCodeEntryDto { Code = c.TargetCode, Display = c.Display })
-                    }
+                    return StatusCode((int)response.StatusCode,
+                        new { error = $"Failed to create {template.Name} operation.", detail = err });
                 }
-            });
 
-        var codeMapResponse = await _normClient.CreateOperationAsync(codeMapPayload, ct);
-        if (!codeMapResponse.IsSuccessStatusCode)
-        {
-            var err = await codeMapResponse.Content.ReadAsStringAsync(ct);
-            _logger.LogWarning("Failed to create HSLOC CodeMap for {FacilityId}: {Error}", session.FacilityId, err);
-            return StatusCode((int)codeMapResponse.StatusCode,
-                new { error = "Failed to create HSLOC code map operation.", detail = err });
-        }
-
-        // Build CopyLocation operation (must run after the HSLOC code map, sequence is auto-managed)
-        var copyLocationPayload = new NormCreatePayload(
-            ResourceTypes: new List<string> { "Location" },
-            FacilityId: session.FacilityId,
-            Operation: new NormCopyLocationDto
-            {
-                Name = "Copy Location Identifier to Type",
-                Description = "Promotes mapped HSLOC identifiers into Location.type as a CodeableConcept."
-            });
-
-        var copyLocationResponse = await _normClient.CreateOperationAsync(copyLocationPayload, ct);
-        if (!copyLocationResponse.IsSuccessStatusCode)
-        {
-            var err = await copyLocationResponse.Content.ReadAsStringAsync(ct);
-            _logger.LogWarning("Failed to create CopyLocation for {FacilityId}: {Error}", session.FacilityId, err);
-            return StatusCode((int)copyLocationResponse.StatusCode,
-                new { error = "HSLOC code map was saved but the Copy Location step failed.", detail = err });
+                _logger.LogWarning("{TemplateName} could not be created for {FacilityId}. Manual action may be needed.", template.Name, session.FacilityId);
+            }
         }
 
         await _onboarding.CompleteStepAsync(token, "LocationTypeMapping", ct);
@@ -327,63 +388,40 @@ public class OnboardingController : ControllerBase
             ["EncounterTypeMapping"] = JsonSerializer.Serialize(request, _jsonOpts)
         }, ct);
 
-        // Operation 1: CodeMap — Encounter.type.coding → SNOMED CT (sequence 10)
-        var codeMapPayload = new NormCreatePayload(
-            ResourceTypes: new List<string> { "Encounter" },
-            FacilityId: session.FacilityId,
-            Operation: new NormCodeMapDto
-            {
-                Name = "Map Encounter Type to SNOMED",
-                Description = "Translates Epic encounter type codes to SNOMED CT for NHSN reporting.",
-                FhirPath = "Encounter.type.coding",
-                CodeSystemMaps = request.CodeSystemMaps.Select(csm => new NormCodeSystemMapDto
-                {
-                    SourceSystem = csm.SourceSystem,
-                    TargetSystem = csm.TargetSystem,
-                    CodeMaps = csm.Codes.ToDictionary(
-                        c => c.SourceCode,
-                        c => new NormCodeEntryDto { Code = c.TargetCode, Display = c.Display })
-                }).ToList()
-            });
-
-        var codeMapResponse = await _normClient.CreateOperationAsync(codeMapPayload, ct);
-        if (!codeMapResponse.IsSuccessStatusCode)
+        // Templates are vendor-specific (see docs/ehr-vendor-templates-proposal.md);
+        // the first template is treated as critical (CodeMap), subsequent ones as
+        // non-blocking (e.g. ConditionalTransform), matching the previous hardcoded behavior.
+        var context = new Dictionary<string, object?>
         {
-            var err = await codeMapResponse.Content.ReadAsStringAsync(ct);
-            _logger.LogWarning("Failed to create Encounter CodeMap for {FacilityId}: {Error}", session.FacilityId, err);
-            return StatusCode((int)codeMapResponse.StatusCode,
-                new { error = "Failed to create Encounter type code map operation.", detail = err });
-        }
-
-        // Operation 2: ConditionalTransform — set Encounter.status = "finished" when period.end Exists (sequence 20)
-        var conditionalPayload = new NormCreatePayload(
-            ResourceTypes: new List<string> { "Encounter" },
-            FacilityId: session.FacilityId,
-            Operation: new NormConditionalTransformDto
+            ["CodeSystemMaps"] = request.CodeSystemMaps.Select(csm => new NormCodeSystemMapDto
             {
-                Name = "Set Encounter Status to Finished",
-                Description = "Sets Encounter.status to 'finished' when a period end date is present.",
-                TargetFhirPath = "Encounter.status",
-                TargetValue = "finished",
-                Conditions = new List<NormConditionDto>
+                SourceSystem = csm.SourceSystem,
+                TargetSystem = csm.TargetSystem,
+                CodeMaps = csm.Codes.ToDictionary(
+                    c => c.SourceCode,
+                    c => new NormCodeEntryDto { Code = c.TargetCode, Display = c.Display })
+            }).ToList()
+        };
+
+        var templates = await GetNormalizationTemplatesAsync(session.EhrVendor, "Encounter", ct);
+        for (var i = 0; i < templates.Count; i++)
+        {
+            var template = templates[i];
+            var response = await CreateOperationFromTemplateAsync(template, session.FacilityId, context, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                var err = await response.Content.ReadAsStringAsync(ct);
+                _logger.LogWarning("Failed to create {TemplateName} for {FacilityId}: {Error}", template.Name, session.FacilityId, err);
+
+                if (i == 0)
                 {
-                    new NormConditionDto
-                    {
-                        FhirPathSource = "Encounter.period.end",
-                        Operator = "Exists",
-                        Value = null
-                    }
+                    return StatusCode((int)response.StatusCode,
+                        new { error = $"Failed to create {template.Name} operation.", detail = err });
                 }
-            });
 
-        var conditionalResponse = await _normClient.CreateOperationAsync(conditionalPayload, ct);
-        if (!conditionalResponse.IsSuccessStatusCode)
-        {
-            var err = await conditionalResponse.Content.ReadAsStringAsync(ct);
-            _logger.LogWarning("Failed to create Encounter ConditionalTransform for {FacilityId}: {Error}", session.FacilityId, err);
-            // Code map already saved — log and continue rather than blocking the step.
-            // The user can add the conditional transform manually from the Normalizations page.
-            _logger.LogWarning("Encounter type code map was saved but ConditionalTransform could not be created. Manual action may be needed.");
+                // Earlier templates already saved — log and continue rather than blocking the step.
+                _logger.LogWarning("{TemplateName} could not be created for {FacilityId}. Manual action may be needed.", template.Name, session.FacilityId);
+            }
         }
 
         await _onboarding.CompleteStepAsync(token, "EncounterTypeMapping", ct);

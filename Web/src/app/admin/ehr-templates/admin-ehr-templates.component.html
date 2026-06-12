@@ -1,0 +1,129 @@
+<div class="workspace-content">
+  <div class="page-content">
+    <div class="ehr-header-row">
+      <h1 class="page-title">EHR Vendor Templates</h1>
+      <a class="nhsn-btn" routerLink="/admin">Back to Admin</a>
+    </div>
+    <p>
+      Manage the per-EHR-vendor normalization operations and data-acquisition query plans that are
+      automatically applied to facilities during onboarding. These templates are not visible to onboarding end users.
+    </p>
+
+    <div class="ehr-vendor-row">
+      <div class="nhsn-form-group ehr-vendor-select">
+        <label for="vendorSelect">Vendor</label>
+        <select id="vendorSelect" [ngModel]="selectedVendor()" (ngModelChange)="selectVendor($event)">
+          @for (vendor of vendors(); track vendor) {
+            <option [value]="vendor">{{ vendor }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="nhsn-form-group ehr-vendor-new">
+        <label for="newVendor">Add vendor</label>
+        <div class="ehr-vendor-new__row">
+          <input id="newVendor" type="text" placeholder="e.g. Cerner" [ngModel]="newVendorName()" (ngModelChange)="newVendorName.set($event)" />
+          <button class="nhsn-btn" (click)="addVendor()" [disabled]="!newVendorName().trim()">Add</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="view-toggle ehr-category-tabs">
+      <button type="button" class="view-toggle__btn" [class.view-toggle__btn--active]="category() === 'Normalization'" (click)="selectCategory('Normalization')">Normalization</button>
+      <button type="button" class="view-toggle__btn" [class.view-toggle__btn--active]="category() === 'QueryPlan'" (click)="selectCategory('QueryPlan')">Query Plans</button>
+    </div>
+
+    @if (error()) {
+      <div class="nhsn-error-msg">{{ error() }}</div>
+    }
+
+    @if (loading()) {
+      <p>Loading templates...</p>
+    } @else if (!selectedVendor()) {
+      <p>Add a vendor to get started.</p>
+    } @else {
+      @if (templates().length === 0) {
+        <p class="ehr-empty">No {{ category() === 'Normalization' ? 'normalization' : 'query plan' }} templates configured for {{ selectedVendor() }} yet.</p>
+      } @else {
+        <table class="nhsn-table">
+          <thead>
+            <tr>
+              <th>Seq</th>
+              <th>Name</th>
+              <th>Resource Type</th>
+              <th>Description</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (t of templates(); track t.id) {
+              <tr>
+                <td>{{ t.sequence }}</td>
+                <td>{{ t.name }}</td>
+                <td><span class="norm-badge norm-badge--resource">{{ t.resourceType }}</span></td>
+                <td>{{ t.description }}</td>
+                <td>{{ t.isActive ? 'Active' : 'Disabled' }}</td>
+                <td>
+                  <button class="nhsn-btn" (click)="edit(t)">Edit</button>
+                  <button class="nhsn-btn nhsn-btn-danger" (click)="delete(t)">Delete</button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+
+      <div class="ehr-add-row">
+        <button class="nhsn-btn nhsn-btn-primary" (click)="addNew()">Add template</button>
+      </div>
+    }
+
+    @if (isCreating() || editing()) {
+      <div class="ehr-form-panel">
+        <h2>{{ editing() ? 'Edit Template' : 'New Template' }}</h2>
+
+        <div class="nhsn-form-group">
+          <label for="tplName">Name <span class="required-mark">*</span></label>
+          <input id="tplName" type="text" [(ngModel)]="form.name" />
+        </div>
+
+        <div class="nhsn-form-group">
+          <label for="tplResourceType">Resource Type <span class="required-mark">*</span></label>
+          <input id="tplResourceType" type="text" placeholder="e.g. Location, Encounter, Patient" [(ngModel)]="form.resourceType" />
+        </div>
+
+        <div class="nhsn-form-group">
+          <label for="tplDescription">Description</label>
+          <textarea id="tplDescription" rows="2" [(ngModel)]="form.description"></textarea>
+        </div>
+
+        <div class="nhsn-form-group">
+          <label for="tplSequence">Sequence</label>
+          <input id="tplSequence" type="number" [(ngModel)]="form.sequence" />
+        </div>
+
+        <div class="nhsn-checkbox-group">
+          <input id="tplActive" type="checkbox" [(ngModel)]="form.isActive" />
+          <label for="tplActive">Active</label>
+        </div>
+
+        <div class="nhsn-form-group">
+          <label for="tplDefinition">Definition JSON <span class="required-mark">*</span></label>
+          <textarea id="tplDefinition" class="ehr-json-editor" rows="14" [(ngModel)]="form.definitionJson"></textarea>
+          <div class="field-hint">
+            Shape depends on category — see docs/ehr-vendor-templates-proposal.md.
+            Use <code>"&#36;&#123;TokenName&#125;"</code> for values supplied per-facility at onboarding time (e.g. <code>&#36;&#123;SourceSystem&#125;</code>, <code>&#36;&#123;CodeMaps&#125;</code>, <code>&#36;&#123;CodeSystemMaps&#125;</code>).
+          </div>
+        </div>
+
+        @if (formError) {
+          <div class="nhsn-error-msg">{{ formError }}</div>
+        }
+
+        <button class="nhsn-btn nhsn-btn-primary" (click)="save()">Save</button>
+        <button class="nhsn-btn" (click)="closeForm()">Cancel</button>
+      </div>
+    }
+  </div>
+</div>

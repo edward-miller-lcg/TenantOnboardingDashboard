@@ -1,0 +1,57 @@
+.ehr-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+
+  .page-title { margin-bottom: 0; }
+}
+
+.ehr-vendor-row {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  margin-top: 16px;
+}
+
+.ehr-vendor-select select {
+  min-width: 200px;
+}
+
+.ehr-vendor-new__row {
+  display: flex;
+  gap: 8px;
+
+  input { max-width: 200px; }
+}
+
+.ehr-category-tabs {
+  margin: 16px 0;
+}
+
+.ehr-empty {
+  color: #5b616b;
+}
+
+.ehr-add-row {
+  margin-top: 16px;
+}
+
+.ehr-form-panel {
+  margin-top: 24px;
+  padding: 20px;
+  border: 1px solid var(--mat-sys-outline, #d6d7d9);
+  border-radius: 8px;
+  max-width: 720px;
+
+  h2 { margin-top: 0; }
+}
+
+.ehr-json-editor {
+  font-family: 'Source Code Pro', 'Courier New', monospace;
+  font-size: 0.875rem;
+  max-width: 100% !important;
+  width: 100%;
+}

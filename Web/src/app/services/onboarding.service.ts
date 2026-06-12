@@ -10,7 +10,9 @@ import {
   PrequalificationReport,
   NormalizationItem,
   EncounterTypeMappingData,
-  LocationTypeMappingData
+  LocationTypeMappingData,
+  EhrVendorTemplate,
+  EhrVendorTemplateRequest
 } from '../interfaces/onboarding.interfaces';
 import { AppConfigService } from './app-config.service';
 
@@ -30,6 +32,31 @@ export class OnboardingService {
 
   getSessions(): Observable<SessionResponse[]> {
     return this.http.get<SessionResponse[]>(`${this.base}/admin/sessions`);
+  }
+
+  // ---- Admin: EHR vendor templates -------------------------------------------
+
+  getEhrTemplates(vendor?: string, category?: 'Normalization' | 'QueryPlan'): Observable<EhrVendorTemplate[]> {
+    const params: Record<string, string> = {};
+    if (vendor) params['vendor'] = vendor;
+    if (category) params['category'] = category;
+    return this.http.get<EhrVendorTemplate[]>(`${this.base}/admin/ehr-templates`, { params });
+  }
+
+  getEhrTemplateVendors(): Observable<string[]> {
+    return this.http.get<string[]>(`${this.base}/admin/ehr-templates/vendors`);
+  }
+
+  createEhrTemplate(request: EhrVendorTemplateRequest): Observable<EhrVendorTemplate> {
+    return this.http.post<EhrVendorTemplate>(`${this.base}/admin/ehr-templates`, request);
+  }
+
+  updateEhrTemplate(id: string, request: EhrVendorTemplateRequest): Observable<EhrVendorTemplate> {
+    return this.http.put<EhrVendorTemplate>(`${this.base}/admin/ehr-templates/${id}`, request);
+  }
+
+  deleteEhrTemplate(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/admin/ehr-templates/${id}`);
   }
 
   // ---- Session --------------------------------------------------------------

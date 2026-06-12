@@ -30,6 +30,7 @@ builder.Services.AddHttpContextAccessor();
 // Repository & Services
 builder.Services.AddScoped<IOnboardingRepository, OnboardingRepository>();
 builder.Services.AddScoped<IOnboardingService, LantanaGroup.Link.OnboardingService.Application.Services.OnboardingService>();
+builder.Services.AddScoped<IEhrVendorTemplateRepository, EhrVendorTemplateRepository>();
 
 // Link-cloud proxy clients
 builder.Services.AddHttpClient<TenantServiceClient>();
@@ -39,7 +40,11 @@ builder.Services.AddHttpClient<NormalizationServiceClient>();
 
 // API
 builder.Services.AddControllers()
-    .AddJsonOptions(o => o.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase);
+    .AddJsonOptions(o =>
+    {
+        o.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+        o.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+    });
 
 builder.Services.AddOpenApi();
 
@@ -64,6 +69,7 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<OnboardingDbContext>();
     await db.Database.MigrateAsync();
+    await EhrVendorTemplateSeeder.SeedAsync(db);
 }
 
 if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Docker"))

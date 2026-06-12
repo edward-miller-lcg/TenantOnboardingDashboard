@@ -168,3 +168,4 @@ C:\projects\TenantOnboardingDashboard\DotNet\OnboardingService\obj\Debug\net10.0
 C:\projects\TenantOnboardingDashboard\DotNet\OnboardingService\obj\Debug\net10.0\ref\OnboardingService.dll
 C:\projects\TenantOnboardingDashboard\DotNet\OnboardingService\bin\Debug\net10.0\Scalar.AspNetCore.dll
 C:\projects\TenantOnboardingDashboard\DotNet\OnboardingService\bin\Debug\net10.0\appsettings.Docker.json
+C:\projects\TenantOnboardingDashboard\DotNet\OnboardingService\obj\Debug\net10.0\OnboardingService.sourcelink.json

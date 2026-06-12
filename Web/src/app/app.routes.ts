@@ -7,6 +7,10 @@ export const routes: Routes = [
     loadComponent: () => import('./admin/admin.component').then(m => m.AdminComponent)
   },
   {
+    path: 'admin/ehr-templates',
+    loadComponent: () => import('./admin/ehr-templates/admin-ehr-templates.component').then(m => m.AdminEhrTemplatesComponent)
+  },
+  {
     path: 'onboarding/:token',
     loadComponent: () => import('./onboarding/onboarding-shell/onboarding-shell.component').then(m => m.OnboardingShellComponent),
     canActivate: [tokenGuard],
