@@ -320,9 +320,11 @@ public class OnboardingController : ControllerBase
             ["LocationTypeMapping"] = JsonSerializer.Serialize(request, _jsonOpts)
         }, ct);
 
-        // Templates are vendor-specific (see docs/ehr-vendor-templates-proposal.md);
-        // the first template is treated as critical (CodeMap), subsequent ones as
-        // non-blocking (e.g. CopyLocation), matching the previous hardcoded behavior.
+        // Templates are vendor-specific (see docs/ehr-vendor-templates-proposal.md).
+        // Normalization operation creation is best-effort and never blocks this step:
+        // the normalization service currently requires a forwarded bearer token
+        // (IsLinkAdmin policy, see Auth gap in the proposal) that callers may not have,
+        // so failures here are logged and the mapping the user entered is still saved.
         var context = new Dictionary<string, object?>
         {
             ["SourceSystem"] = request.SourceSystem,
@@ -332,22 +334,13 @@ public class OnboardingController : ControllerBase
         };
 
         var templates = await GetNormalizationTemplatesAsync(session.EhrVendor, "Location", ct);
-        for (var i = 0; i < templates.Count; i++)
+        foreach (var template in templates)
         {
-            var template = templates[i];
             var response = await CreateOperationFromTemplateAsync(template, session.FacilityId, context, ct);
             if (!response.IsSuccessStatusCode)
             {
                 var err = await response.Content.ReadAsStringAsync(ct);
-                _logger.LogWarning("Failed to create {TemplateName} for {FacilityId}: {Error}", template.Name, session.FacilityId, err);
-
-                if (i == 0)
-                {
-                    return StatusCode((int)response.StatusCode,
-                        new { error = $"Failed to create {template.Name} operation.", detail = err });
-                }
-
-                _logger.LogWarning("{TemplateName} could not be created for {FacilityId}. Manual action may be needed.", template.Name, session.FacilityId);
+                _logger.LogWarning("{TemplateName} could not be created for {FacilityId}: {Error}. Manual action may be needed.", template.Name, session.FacilityId, err);
             }
         }
 
@@ -388,9 +381,11 @@ public class OnboardingController : ControllerBase
             ["EncounterTypeMapping"] = JsonSerializer.Serialize(request, _jsonOpts)
         }, ct);
 
-        // Templates are vendor-specific (see docs/ehr-vendor-templates-proposal.md);
-        // the first template is treated as critical (CodeMap), subsequent ones as
-        // non-blocking (e.g. ConditionalTransform), matching the previous hardcoded behavior.
+        // Templates are vendor-specific (see docs/ehr-vendor-templates-proposal.md).
+        // Normalization operation creation is best-effort and never blocks this step:
+        // the normalization service currently requires a forwarded bearer token
+        // (IsLinkAdmin policy, see Auth gap in the proposal) that callers may not have,
+        // so failures here are logged and the mapping the user entered is still saved.
         var context = new Dictionary<string, object?>
         {
             ["CodeSystemMaps"] = request.CodeSystemMaps.Select(csm => new NormCodeSystemMapDto
@@ -404,23 +399,13 @@ public class OnboardingController : ControllerBase
         };
 
         var templates = await GetNormalizationTemplatesAsync(session.EhrVendor, "Encounter", ct);
-        for (var i = 0; i < templates.Count; i++)
+        foreach (var template in templates)
         {
-            var template = templates[i];
             var response = await CreateOperationFromTemplateAsync(template, session.FacilityId, context, ct);
             if (!response.IsSuccessStatusCode)
             {
                 var err = await response.Content.ReadAsStringAsync(ct);
-                _logger.LogWarning("Failed to create {TemplateName} for {FacilityId}: {Error}", template.Name, session.FacilityId, err);
-
-                if (i == 0)
-                {
-                    return StatusCode((int)response.StatusCode,
-                        new { error = $"Failed to create {template.Name} operation.", detail = err });
-                }
-
-                // Earlier templates already saved — log and continue rather than blocking the step.
-                _logger.LogWarning("{TemplateName} could not be created for {FacilityId}. Manual action may be needed.", template.Name, session.FacilityId);
+                _logger.LogWarning("{TemplateName} could not be created for {FacilityId}: {Error}. Manual action may be needed.", template.Name, session.FacilityId, err);
             }
         }
 

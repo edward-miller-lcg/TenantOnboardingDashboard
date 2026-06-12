@@ -5,7 +5,7 @@
 > - `EhrVendorTemplate` entity, migration (`AddEhrVendorTemplates`), and repository: done.
 > - Admin API (`/api/admin/ehr-templates`, CRUD + `/vendors`): done, on the existing `AdminController`.
 > - Epic seed data (HSLOC/SNOMED normalization templates + draft Patient query plan): done via `EhrVendorTemplateSeeder`, runs on startup.
-> - `SaveLocationTypeMapping`/`SaveEncounterTypeMapping` refactored to load templates via `EhrTemplateMerger` (token-substitution merge) instead of hardcoding Epic operations.
+> - `SaveLocationTypeMapping`/`SaveEncounterTypeMapping` refactored to load templates via `EhrTemplateMerger` (token-substitution merge) instead of hardcoding Epic operations. Normalization operation creation is now best-effort for *all* templates (including the former "critical" CodeMap) — failures (e.g. the `IsLinkAdmin` 401 below) are logged and the step still completes, since the user's mapping data is already saved.
 > - `SaveServerInfo` now injects `QueryPlan` templates into `DataAcquisitionClient.SaveQueryConfigAsync` (best-effort, non-blocking).
 > - Admin UI at `/admin/ehr-templates` (linked from `/admin`), modern shell styling via `.workspace-content`.
 > - Remaining: `IsLinkAdmin` auth policy (flagged, not blocking — see Auth gap below), `QueryConfigPayload` shape confirmation with Data Acquisition team, JSON-schema validation for `DefinitionJson`.
